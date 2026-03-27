@@ -74,14 +74,13 @@ const getUserProfile = async (userId) => {
   return user;
 };
 
-const updateUserProfile = async (userId, email, name) => {
+const updateUserProfile = async (userId, email) => {
   if (!userId) {
     throw new Error("Unauthorized");
   }
 
   const updateData = {};
   if (email) updateData.email = email;
-  if (name) updateData.name = name;
 
   if (Object.keys(updateData).length === 0) {
     throw new Error("No fields to update");
@@ -105,7 +104,6 @@ const updateUserProfile = async (userId, email, name) => {
     await publishEvent("user-updated", {
       userId: user.id,
       email: user.email,
-      name: user.name,
       event: "USER_UPDATED",
     });
   } catch (error) {
@@ -119,6 +117,5 @@ const updateUserProfile = async (userId, email, name) => {
 module.exports = {
   registerUser,
   loginUser,
-  getUserProfile,
   updateUserProfile,
 };

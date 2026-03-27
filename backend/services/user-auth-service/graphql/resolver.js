@@ -23,16 +23,6 @@ const resolvers = {
       const result = await loginUser(args.email, args.password);
       return result;
     },
-    updateProfile: async (_, args, context) => {
-      if (!context.user) {
-        throw new Error("Unauthorized");
-      }
-      return await updateUserProfile(
-        context.user.userId,
-        args.email,
-        args.name,
-      );
-    },
   },
 };
 
