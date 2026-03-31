@@ -1,12 +1,5 @@
-const express = require("express");
 const { ApolloServer } = require("@apollo/server");
-const { expressMiddleware } = require("@apollo/server/express4");
-const {
-  ApolloServerPluginDrainHttpServer,
-} = require("@apollo/server/plugin/drainHttpServer");
-const http = require("http");
-const cors = require("cors");
-const { json } = require("body-parser");
+const { startStandaloneServer } = require("@apollo/server/standalone");
 
 const { typeDefs } = require("./graphql/type-defs");
 const { resolvers } = require("./graphql/resolver");
@@ -18,37 +11,27 @@ const { prisma } = require("./db/prisma");
 const PORT = process.env.PORT;
 
 async function bootstrap() {
-  const app = express();
-  const httpServer = http.createServer(app);
-
+  // Create ApolloServer instance
   const server = new ApolloServer({
     typeDefs,
     resolvers,
-    plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
+    // plugins: [/* add any plugins here if needed */]
   });
 
-  await server.start();
-
-  app.use(
-    "/graphql",
-    cors(),
-    json(),
-    expressMiddleware(server, {
-      context: createContext,
-    }),
-  );
-
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "user-service" });
+  // Start the server (do NOT call server.start() separately)
+  const { url } = await startStandaloneServer(server, {
+    listen: { port: PORT },
+    context: createContext,
   });
 
+  // Start Kafka producer and consumer after server is running
   await connectProducer();
   await startConsumer();
 
-  await new Promise((resolve) => httpServer.listen(PORT, resolve));
-  console.log(`User service running on http://localhost:${PORT}/graphql`);
+  console.log(`User service running on ${url}`);
 }
 
+// Graceful shutdown
 async function shutdown() {
   console.log("Shutting down...");
   await disconnectProducer();
