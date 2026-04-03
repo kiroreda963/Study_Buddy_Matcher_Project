@@ -1,13 +1,32 @@
-const express = require("express");
 const dotenv = require("dotenv");
-//const { PrismaClient } = require("@prisma/client");
+const { ApolloServer } = require("@apollo/server");
+const { startStandaloneServer } = require("@apollo/server/standalone");
+const typeDefs = require("./graphql/type-defs");
+const resolvers = require("./graphql/resolvers");
+const { shutdownResources } = require("./graphql/context");
+
 dotenv.config();
-const PORT = process.env.PORT;
-const app = express();
-//const prisma = new PrismaClient();
 
-app.use(express.json());
+const PORT = Number(process.env.PORT || 3001);
 
-app.listen(PORT, () => {
-  console.log("User Service running on port " + PORT);
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
 });
+
+const startServer = async () => {
+  const { url } = await startStandaloneServer(server, {
+    listen: { port: PORT },
+  });
+  console.log(`Availability Service running at ${url}`);
+};
+
+startServer();
+
+const gracefulShutdown = async () => {
+  await shutdownResources();
+  process.exit(0);
+};
+
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
