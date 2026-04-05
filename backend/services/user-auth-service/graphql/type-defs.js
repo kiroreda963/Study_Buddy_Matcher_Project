@@ -2,6 +2,10 @@ const typeDefs = `
   type User {
     id: ID!
     email: String!
+    name: String!
+    university: String
+    phone_number: String
+    academic_year: String
     createdAt: String!
     updatedAt: String!
   }
@@ -16,8 +20,14 @@ const typeDefs = `
   }
 
   type Mutation {
-    register(email: String!, password: String!, name: String): AuthPayload!
+    register(email: String!, password: String!, name: String!): AuthPayload!
     login(email: String!, password: String!): AuthPayload!
+    addAdditionalUserInfo(
+      university: String
+      phone_number: String
+      academic_year: String
+    ): User!
+    updateUserProfile(email: String): User!
   }
 `;
 

@@ -6,7 +6,7 @@ const { publishEvent } = require("./kafka/producer");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-const registerUser = async (email, password, name = "") => {
+const registerUser = async (email, password, name) => {
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
     throw new Error("User already exists");
@@ -16,7 +16,7 @@ const registerUser = async (email, password, name = "") => {
     data: {
       email,
       password: hashedPassword,
-      name: name || "",
+      name: name,
     },
   });
 
@@ -35,6 +35,24 @@ const registerUser = async (email, password, name = "") => {
 
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "24h" });
   return { token, user };
+};
+
+const addAdditionalUserInfo = async (
+  userId,
+  university,
+  phone_number,
+  academic_year,
+) => {
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      university,
+      phone_number,
+      academic_year,
+    },
+  });
+
+  return updatedUser;
 };
 
 const loginUser = async (email, password) => {
@@ -118,4 +136,5 @@ module.exports = {
   registerUser,
   loginUser,
   updateUserProfile,
+  addAdditionalUserInfo,
 };
