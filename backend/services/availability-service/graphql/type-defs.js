@@ -33,7 +33,7 @@ const typeDefs = gql`
   }
 
   type Query {
-    getAvailabilityByUser(userId: String!): [AvailabilitySlot!]!
+    getAvailabilityByUser: [AvailabilitySlot!]!
     getAvailabilitySlotById(id: ID!): AvailabilitySlot
   }
 

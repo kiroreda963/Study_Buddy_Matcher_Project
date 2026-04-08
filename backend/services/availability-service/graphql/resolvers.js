@@ -56,14 +56,11 @@ const findOverlappingSlot = async ({
 
 const resolvers = {
   Query: {
-    getAvailabilityByUser: async (_, { userId }, contextValue) => {
+    getAvailabilityByUser: async (_, __, contextValue) => {
       const currentUserId = requireAuth(contextValue);
-      if (userId !== currentUserId) {
-        throw new Error("Forbidden. You can only access your own availability.");
-      }
 
       const slots = await prisma.availabilitySlot.findMany({
-        where: { userId },
+        where: { userId: currentUserId },
         orderBy: [{ startTime: "asc" }],
       });
       return slots.map(serializeSlotDates);
