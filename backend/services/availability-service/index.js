@@ -3,7 +3,7 @@ const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 const typeDefs = require("./graphql/type-defs");
 const resolvers = require("./graphql/resolvers");
-const { shutdownResources } = require("./graphql/context");
+const { buildContext, shutdownResources } = require("./graphql/context");
 
 dotenv.config();
 
@@ -17,6 +17,7 @@ const server = new ApolloServer({
 const startServer = async () => {
   const { url } = await startStandaloneServer(server, {
     listen: { port: PORT },
+    context: buildContext,
   });
   console.log(`Availability Service running at ${url}`);
 };

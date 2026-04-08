@@ -21,6 +21,7 @@
     "express": "^5.2.1",
     "graphql": "^16.11.0",
     "graphql-tag": "^2.12.6",
+    "jsonwebtoken": "^9.0.2",
     "kafkajs": "^2.2.4",
     "prisma": "^6.9.0"
   }

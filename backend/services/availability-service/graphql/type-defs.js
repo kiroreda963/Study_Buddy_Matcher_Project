@@ -1,20 +1,9 @@
 const { gql } = require("graphql-tag");
 
 const typeDefs = gql`
-  enum DayOfWeek {
-    MONDAY
-    TUESDAY
-    WEDNESDAY
-    THURSDAY
-    FRIDAY
-    SATURDAY
-    SUNDAY
-  }
-
   type AvailabilitySlot {
     id: ID!
     userId: String!
-    dayOfWeek: DayOfWeek!
     startTime: String!
     endTime: String!
     createdAt: String!
@@ -22,14 +11,11 @@ const typeDefs = gql`
   }
 
   input AvailabilityInput {
-    userId: String!
-    dayOfWeek: DayOfWeek!
     startTime: String!
     endTime: String!
   }
 
   input UpdateAvailabilityInput {
-    dayOfWeek: DayOfWeek
     startTime: String
     endTime: String
   }

@@ -1,5 +1,12 @@
-const { DayOfWeek, Prisma } = require("@prisma/client");
+const { Prisma } = require("@prisma/client");
 const { prisma, publishAvailabilityEvent } = require("./context");
+
+const requireAuth = (contextValue) => {
+  if (!contextValue?.currentUserId) {
+    throw new Error("Unauthorized. Missing or invalid token.");
+  }
+  return contextValue.currentUserId;
+};
 
 const ensureValidTimeRange = (startTime, endTime) => {
   const start = new Date(startTime);
@@ -31,7 +38,6 @@ const serializeSlotDates = (slot) => {
 const findOverlappingSlot = async ({
   tx,
   userId,
-  dayOfWeek,
   startTime,
   endTime,
   excludingId,
@@ -39,7 +45,6 @@ const findOverlappingSlot = async ({
   return tx.availabilitySlot.findFirst({
     where: {
       userId,
-      dayOfWeek,
       id: excludingId ? { not: excludingId } : undefined,
       AND: [
         { startTime: { lt: new Date(endTime) } },
@@ -51,34 +56,42 @@ const findOverlappingSlot = async ({
 
 const resolvers = {
   Query: {
-    getAvailabilityByUser: async (_, { userId }) => {
+    getAvailabilityByUser: async (_, { userId }, contextValue) => {
+      const currentUserId = requireAuth(contextValue);
+      if (userId !== currentUserId) {
+        throw new Error("Forbidden. You can only access your own availability.");
+      }
+
       const slots = await prisma.availabilitySlot.findMany({
         where: { userId },
-        orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+        orderBy: [{ startTime: "asc" }],
       });
       return slots.map(serializeSlotDates);
     },
-    getAvailabilitySlotById: async (_, { id }) => {
+    getAvailabilitySlotById: async (_, { id }, contextValue) => {
+      const currentUserId = requireAuth(contextValue);
       const slot = await prisma.availabilitySlot.findUnique({ where: { id } });
+      if (!slot) {
+        return null;
+      }
+      if (slot.userId !== currentUserId) {
+        throw new Error("Forbidden. You can only access your own availability.");
+      }
       return serializeSlotDates(slot);
     },
   },
 
   Mutation: {
-    createAvailability: async (_, { input }) => {
-      const { userId, dayOfWeek, startTime, endTime } = input;
+    createAvailability: async (_, { input }, contextValue) => {
+      const currentUserId = requireAuth(contextValue);
+      const { startTime, endTime } = input;
       ensureValidTimeRange(startTime, endTime);
-
-      if (!DayOfWeek[dayOfWeek]) {
-        throw new Error("Invalid dayOfWeek value.");
-      }
 
       const slot = await prisma.$transaction(
         async (tx) => {
           const overlap = await findOverlappingSlot({
             tx,
-            userId,
-            dayOfWeek,
+            userId: currentUserId,
             startTime,
             endTime,
           });
@@ -91,8 +104,7 @@ const resolvers = {
 
           return tx.availabilitySlot.create({
             data: {
-              userId,
-              dayOfWeek,
+              userId: currentUserId,
               startTime: new Date(startTime),
               endTime: new Date(endTime),
             },
@@ -116,7 +128,8 @@ const resolvers = {
       };
     },
 
-    updateAvailability: async (_, { id, input }) => {
+    updateAvailability: async (_, { id, input }, contextValue) => {
+      const currentUserId = requireAuth(contextValue);
       const existing = await prisma.availabilitySlot.findUnique({ where: { id } });
       if (!existing) {
         return {
@@ -126,23 +139,20 @@ const resolvers = {
           eventPublished: false,
         };
       }
+      if (existing.userId !== currentUserId) {
+        throw new Error("Forbidden. You can only update your own availability.");
+      }
 
-      const nextDay = input.dayOfWeek || existing.dayOfWeek;
       const nextStart = input.startTime || existing.startTime.toISOString();
       const nextEnd = input.endTime || existing.endTime.toISOString();
 
       ensureValidTimeRange(nextStart, nextEnd);
-
-      if (!DayOfWeek[nextDay]) {
-        throw new Error("Invalid dayOfWeek value.");
-      }
 
       const slot = await prisma.$transaction(
         async (tx) => {
           const overlap = await findOverlappingSlot({
             tx,
             userId: existing.userId,
-            dayOfWeek: nextDay,
             startTime: nextStart,
             endTime: nextEnd,
             excludingId: id,
@@ -157,7 +167,6 @@ const resolvers = {
           return tx.availabilitySlot.update({
             where: { id },
             data: {
-              dayOfWeek: nextDay,
               startTime: new Date(nextStart),
               endTime: new Date(nextEnd),
             },
@@ -181,13 +190,17 @@ const resolvers = {
       };
     },
 
-    deleteAvailability: async (_, { id }) => {
+    deleteAvailability: async (_, { id }, contextValue) => {
+      const currentUserId = requireAuth(contextValue);
       const existing = await prisma.availabilitySlot.findUnique({ where: { id } });
       if (!existing) {
         return {
           success: false,
           message: "Availability slot not found.",
         };
+      }
+      if (existing.userId !== currentUserId) {
+        throw new Error("Forbidden. You can only delete your own availability.");
       }
 
       await prisma.availabilitySlot.delete({ where: { id } });
