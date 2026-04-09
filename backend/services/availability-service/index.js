@@ -1,11 +1,11 @@
+const path = require("path");
 const dotenv = require("dotenv");
+dotenv.config({ path: path.join(__dirname, ".env") });
 const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 const typeDefs = require("./graphql/type-defs");
 const resolvers = require("./graphql/resolvers");
 const { buildContext, shutdownResources } = require("./graphql/context");
-
-dotenv.config();
 
 const PORT = Number(process.env.PORT || 3001);
 
