@@ -1,13 +1,47 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  university   String?
+  academicYear String?
+  courses      Course[]
+  topics       Topic[]
+  preferences  StudyPreference?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Course {
+  id        String      @id @default(uuid())
+  name      String
+  profileId String
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+}
+
+model Topic {
+  id        String      @id @default(uuid())
+  name      String
+  profileId String
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+}
+
+model StudyPreference {
+  id          String      @id @default(uuid())
+  profileId   String      @unique
+  profile     UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  studyPace   String?     // e.g. "slow", "moderate", "fast"
+  studyMode   String?     // "online" or "in-person"
+  groupSize   String?     // e.g. "solo", "small", "large"
+  studyStyle  String?     // e.g. "notes", "discussion", "quiet", "listening"
+  updatedAt   DateTime    @updatedAt
 }

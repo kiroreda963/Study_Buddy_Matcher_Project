@@ -1,13 +1,20 @@
-const express = require("express");
-const dotenv = require("dotenv");
-//const { PrismaClient } = require("@prisma/client");
-dotenv.config();
-const PORT = process.env.PORT;
-const app = express();
-//const prisma = new PrismaClient();
+require("dotenv").config();
+const { ApolloServer } = require("@apollo/server");
+const { startStandaloneServer } = require("@apollo/server/standalone");
+const { connectProducer } = require("./kafka/producer");
+const typeDefs = require("./graphql/typeDefs");
+const resolvers = require("./graphql/resolvers");
 
-app.use(express.json());
+async function startServer() {
+  await connectProducer();
 
-app.listen(PORT, () => {
-  console.log("User Service running on port " + PORT);
-});
+  const server = new ApolloServer({ typeDefs, resolvers });
+
+  const { url } = await startStandaloneServer(server, {
+    listen: { port: process.env.PORT || 4002 },
+  });
+
+  console.log(`Profile & Preferences Service running at ${url}`);
+}
+
+startServer().catch(console.error);
