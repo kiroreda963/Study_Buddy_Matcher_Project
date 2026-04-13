@@ -6,8 +6,10 @@ import resolvers from "./graphql/resolvers.js";
 import { createContext } from "./graphql/context.js";
 import { connectProducer, disconnectProducer } from "./kafka/producer.js";
 import { prisma } from "./config/prisma.js";
-
-const PORT = process.env.PORTt;
+import dotenv from "dotenv";
+dotenv.config();
+console.log(process.env.MY_VARIABLE);
+const PORT = process.env.PORT;
 
 async function bootstrap() {
   // Create ApolloServer instance

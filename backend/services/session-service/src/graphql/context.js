@@ -2,10 +2,7 @@ import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import jwt from "jsonwebtoken";
-import { prisma } from "../config/prisma.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../.env") });
+import prismaData from "../config/prisma.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -31,4 +28,3 @@ export async function createContext({ req }) {
     user,
   };
 }
-
