@@ -1,10 +1,11 @@
 const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 
-const { typeDefs } = require("./graphql/type-defs.js");
+const { typeDefs } = require("./graphql/type-defs");
 const { resolvers } = require("./graphql/resolver");
 const { createContext } = require("./graphql/context");
-//const { startConsumer, stopConsumer } = require("./kafka/consumer");
+const { connectProducer, disconnectProducer } = require("./kafka/producer");
+const { startConsumer, stopConsumer } = require("./kafka/consumer");
 const { prisma } = require("./db/prisma");
 
 const PORT = process.env.PORT;
@@ -23,7 +24,9 @@ async function bootstrap() {
     context: createContext,
   });
 
-  // await startConsumer();
+  // Start Kafka producer and consumer after server is running
+  await connectProducer();
+  await startConsumer();
 
   console.log(`User service running on ${url}`);
 }
@@ -31,7 +34,8 @@ async function bootstrap() {
 // Graceful shutdown
 async function shutdown() {
   console.log("Shutting down...");
-  // await stopConsumer();
+  await disconnectProducer();
+  await stopConsumer();
   await prisma.$disconnect();
   process.exit(0);
 }

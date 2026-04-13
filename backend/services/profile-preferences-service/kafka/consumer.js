@@ -57,9 +57,7 @@ const startConsumer = async () => {
     });
   } catch (error) {
     isConnected = false;
-    console.warn(
-      "⚠ Kafka consumer unavailable (service running in degraded mode)",
-    );
+    console.warn("⚠ Kafka consumer unavailable (service running in degraded mode)");
   }
 };
 
