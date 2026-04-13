@@ -15,7 +15,7 @@ const kafka = new Kafka({
   },
 });
 
-const consumer = kafka.consumer({ groupId: "notfication-service-group" });
+const consumer = kafka.consumer({ groupId: "notification-service-group" });
 let isConnected = false;
 
 const startConsumer = async () => {
@@ -26,7 +26,7 @@ const startConsumer = async () => {
 
     // Subscribe to topics
     await consumer.subscribe({
-      topics: ["user-registered", "user-logged-in", "user-updated"],
+      topics: ["session-created", "user-logged-in", "user-updated"],
       fromBeginning: false,
     });
 
@@ -40,7 +40,14 @@ const startConsumer = async () => {
           // Process events based on topic
           switch (topic) {
             case "session-created":
-              console.log(`[session-created] userId: ${event.userId}`);
+              const formatDate = new Date(event.date).toLocaleString();
+              sendNotification(
+                event.authorId,
+                `Session created Successfully on ${formatDate}`,
+              );
+              console.log(
+                `[session-created] userId: ${event.authorId} + formatDate: ${formatDate}`,
+              );
               break;
             case "user-logged-in":
               console.log(`[user-logged-in] userId: ${event.userId}`);
