@@ -32,4 +32,12 @@ export const sendSessionUpdatedEvent = async (session) => {
         messages: [{ value: JSON.stringify(session) }],
         producer: "session-service",
     });
-}
+};
+
+export const connectProducer = async () => {
+    await producer.connect();
+};
+
+export const disconnectProducer = async () => {
+    await producer.disconnect();
+};

@@ -8,9 +8,9 @@ datasource db {
 
 model StudySession {
   id           String       @id @default(uuid())
+  authorId     String       
   topic        String
   date         DateTime
-  time         String       @db.VarChar(5)
   duration     Int
   sessionType  SessionType
   contactInfo  String[]
@@ -20,12 +20,13 @@ model StudySession {
 
 model Invitation {
   id        String           @id @default(uuid())
-  userId    String
+  authorId  String
+  inviteeId String
   sessionId String
   status    InvitationStatus @default(PENDING)
   session   StudySession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, sessionId])
+  @@unique([inviteeId, sessionId])
 }
 
 enum SessionType {
