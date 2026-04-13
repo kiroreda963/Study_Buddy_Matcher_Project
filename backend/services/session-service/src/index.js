@@ -7,7 +7,7 @@ import { createContext } from "./graphql/context.js";
 import { connectProducer, disconnectProducer } from "./kafka/producer.js";
 import { prisma } from "./config/prisma.js";
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORTt;
 
 async function bootstrap() {
   // Create ApolloServer instance
