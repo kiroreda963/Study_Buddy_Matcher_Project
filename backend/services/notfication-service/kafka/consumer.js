@@ -1,4 +1,5 @@
 const { Kafka } = require("kafkajs");
+const { prisma } = require("../db/prisma");
 
 const kafka = new Kafka({
   clientId: "user-auth-service",
@@ -14,7 +15,7 @@ const kafka = new Kafka({
   },
 });
 
-const consumer = kafka.consumer({ groupId: "user-auth-service-group" });
+const consumer = kafka.consumer({ groupId: "notfication-service-group" });
 let isConnected = false;
 
 const startConsumer = async () => {
@@ -38,8 +39,8 @@ const startConsumer = async () => {
 
           // Process events based on topic
           switch (topic) {
-            case "user-registered":
-              console.log(`[user-registered] userId: ${event.userId}`);
+            case "session-created":
+              console.log(`[session-created] userId: ${event.userId}`);
               break;
             case "user-logged-in":
               console.log(`[user-logged-in] userId: ${event.userId}`);
@@ -60,6 +61,20 @@ const startConsumer = async () => {
     console.warn(
       "⚠ Kafka consumer unavailable (service running in degraded mode)",
     );
+  }
+};
+
+const sendNotification = async (userId, message) => {
+  try {
+    await prisma.notification.create({
+      data: {
+        userId,
+        message,
+      },
+    });
+    console.log(`✓ Notification created for userId: ${userId}`);
+  } catch (error) {
+    console.error("Failed to create notification:", error.message);
   }
 };
 
