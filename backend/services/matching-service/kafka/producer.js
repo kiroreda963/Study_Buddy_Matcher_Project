@@ -1,48 +1,39 @@
 const { Kafka } = require("kafkajs");
 
 const kafka = new Kafka({
-  clientId: "user-auth-service",
+  clientId: "matching-service",
   brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
   connectionTimeout: 3000,
   requestTimeout: 3000,
-  retry: {
-    maxRetryTime: 3000,
-    initialRetryTime: 100,
-    multiplier: 2,
-    randomizationFactor: 0.2,
-    maxAttempts: 3,
-  },
 });
 
 const producer = kafka.producer();
 let isConnected = false;
 
-const connectProducer = async () => {
+async function connectProducer() {
   try {
     await producer.connect();
     isConnected = true;
-    console.log("✓ Kafka producer connected");
+    console.log("Matching Kafka producer connected");
   } catch (error) {
     isConnected = false;
-    console.warn("⚠ Kafka producer unavailable (service running in degraded mode)");
-    // Don't throw - allow service to run without Kafka
+    console.warn("Matching Kafka producer unavailable:", error.message);
   }
-};
+}
 
-const disconnectProducer = async () => {
+async function disconnectProducer() {
   try {
     if (isConnected) {
       await producer.disconnect();
-      console.log("Kafka producer disconnected");
+      isConnected = false;
     }
   } catch (error) {
-    console.error("Failed to disconnect Kafka producer:", error.message);
+    console.warn("Failed to disconnect matching Kafka producer:", error.message);
   }
-};
+}
 
-const publishEvent = async (topic, event) => {
+async function publishEvent(topic, event) {
   if (!isConnected) {
-    console.debug(`ℹ Kafka unavailable - event not published: ${topic}`);
     return;
   }
 
@@ -51,19 +42,15 @@ const publishEvent = async (topic, event) => {
       topic,
       messages: [
         {
-          key: event.userId || event.id,
-          value: JSON.stringify({
-            ...event,
-            timestamp: new Date().toISOString(),
-          }),
+          key: String(event?.payload?.userId || event?.userId || "matching"),
+          value: JSON.stringify(event),
         },
       ],
     });
-    console.log(`✓ Event published: ${topic}`);
   } catch (error) {
-    console.warn(`⚠ Failed to publish event to ${topic}:`, error.message);
+    console.warn(`Failed to publish to ${topic}:`, error.message);
   }
-};
+}
 
 module.exports = {
   connectProducer,

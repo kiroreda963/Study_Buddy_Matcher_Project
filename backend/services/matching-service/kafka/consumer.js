@@ -1,76 +1,99 @@
 const { Kafka } = require("kafkajs");
+const {
+  upsertAvailabilityProjection,
+  upsertProfileProjectionFromProfileService,
+  generateMatchesForUser,
+} = require("../services/matchingService");
 
 const kafka = new Kafka({
-  clientId: "user-auth-service",
+  clientId: "matching-service",
   brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
   connectionTimeout: 3000,
   requestTimeout: 3000,
-  retry: {
-    maxRetryTime: 3000,
-    initialRetryTime: 100,
-    multiplier: 2,
-    randomizationFactor: 0.2,
-    maxAttempts: 3,
-  },
 });
 
-const consumer = kafka.consumer({ groupId: "user-auth-service-group" });
+const consumer = kafka.consumer({ groupId: "matching-service-group" });
 let isConnected = false;
 
-const startConsumer = async () => {
+function tryParseMessage(message) {
+  try {
+    return JSON.parse(message.value.toString());
+  } catch {
+    return null;
+  }
+}
+
+async function handleUserPreferenceEvent(event) {
+  const userId = event?.payload?.userId;
+  if (!userId) {
+    return;
+  }
+
+  await upsertProfileProjectionFromProfileService(String(userId));
+  await generateMatchesForUser(String(userId));
+}
+
+async function handleAvailabilityEvent(event) {
+  const slot = event?.payload;
+  if (!slot?.userId || !slot?.id) {
+    return;
+  }
+
+  await upsertAvailabilityProjection(slot);
+  await generateMatchesForUser(String(slot.userId));
+}
+
+async function startConsumer() {
   try {
     await consumer.connect();
     isConnected = true;
-    console.log("✓ Kafka consumer connected");
+    console.log("Matching Kafka consumer connected");
 
-    // Subscribe to topics
     await consumer.subscribe({
-      topics: ["user-registered", "user-logged-in", "user-updated"],
+      topics: [
+        process.env.KAFKA_PROFILE_TOPIC || "UserPreferencesUpdated",
+        process.env.KAFKA_AVAILABILITY_TOPIC || "availability-events",
+      ],
       fromBeginning: false,
     });
 
-    // Start consuming messages
     await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        try {
-          const event = JSON.parse(message.value.toString());
-          console.log(`✓ Event received: ${topic}`);
+      eachMessage: async ({ topic, message }) => {
+        const event = tryParseMessage(message);
+        if (!event) {
+          return;
+        }
 
-          // Process events based on topic
-          switch (topic) {
-            case "user-registered":
-              console.log(`[user-registered] userId: ${event.userId}`);
-              break;
-            case "user-logged-in":
-              console.log(`[user-logged-in] userId: ${event.userId}`);
-              break;
-            case "user-updated":
-              console.log(`[user-updated] userId: ${event.userId}`);
-              break;
-            default:
-              console.log(`[unknown] ${topic}`);
+        try {
+          if (topic === (process.env.KAFKA_PROFILE_TOPIC || "UserPreferencesUpdated")) {
+            await handleUserPreferenceEvent(event);
+            return;
+          }
+
+          if (topic === (process.env.KAFKA_AVAILABILITY_TOPIC || "availability-events")) {
+            await handleAvailabilityEvent(event);
           }
         } catch (error) {
-          console.error("Error processing Kafka message:", error.message);
+          console.warn(`Matching event handler failed for topic ${topic}:`, error.message);
         }
       },
     });
   } catch (error) {
     isConnected = false;
-    console.warn("⚠ Kafka consumer unavailable (service running in degraded mode)");
+    console.warn("Matching Kafka consumer unavailable:", error.message);
   }
-};
+}
 
-const stopConsumer = async () => {
+async function stopConsumer() {
   try {
     if (isConnected) {
       await consumer.disconnect();
-      console.log("Kafka consumer disconnected");
+      isConnected = false;
     }
   } catch (error) {
-    console.error("Failed to disconnect Kafka consumer:", error.message);
+    console.warn("Failed to disconnect matching Kafka consumer:", error.message);
   }
-};
+}
 
 module.exports = {
   startConsumer,

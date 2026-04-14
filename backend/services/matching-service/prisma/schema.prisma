@@ -1,13 +1,79 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url= env("DATABASE_URL")
+}
+
+model MatchProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  preferredPace      String?
+  preferredMode      String?
+  preferredGroupSize Int?
+  preferredStyle     String?
+  courses            Course[]
+  topics             Topic[]
+  availabilitySlots  AvailabilitySlot[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model Course {
+  id             String       @id @default(uuid())
+  name           String
+  matchProfileId String
+  matchProfile   MatchProfile @relation(fields: [matchProfileId], references: [id], onDelete: Cascade)
+}
+
+model Topic {
+  id             String       @id @default(uuid())
+  name           String
+  matchProfileId String
+  matchProfile   MatchProfile @relation(fields: [matchProfileId], references: [id], onDelete: Cascade)
+}
+
+model AvailabilitySlot {
+  id             String       @id @default(uuid())
+  userId         String
+  dayOfWeek      String
+  startTime      String
+  endTime        String
+  matchProfileId String
+  matchProfile   MatchProfile @relation(fields: [matchProfileId], references: [id], onDelete: Cascade)
+}
+
+model Match {
+  id            String   @id @default(uuid())
+  userId        String
+  matchedUserId String
+  score         Float
+  reasons       String[]
+  ignored       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, matchedUserId])
+}
+
+model BuddyRequest {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, CANCELLED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Connection {
+  id          String   @id @default(uuid())
+  userId1     String
+  userId2     String
+  connectedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId1, userId2])
 }
