@@ -26,7 +26,7 @@ const startConsumer = async () => {
 
     // Subscribe to topics
     await consumer.subscribe({
-      topics: ["session-created", "user-logged-in", "user-updated"],
+      topics: ["session-created", "session-invitation", "user-updated"],
       fromBeginning: false,
     });
 
@@ -49,8 +49,12 @@ const startConsumer = async () => {
                 `[session-created] userId: ${event.authorId} + formatDate: ${formatDate}`,
               );
               break;
-            case "user-logged-in":
-              console.log(`[user-logged-in] userId: ${event.userId}`);
+            case "session-invitation":
+              sendNotification(
+                event.inviteeId,
+                `You have been invited to a session (ID: ${event.sessionId})`,
+              );
+              console.log(`[session-invitation] userId: ${event.inviteeId}`);
               break;
             case "user-updated":
               console.log(`[user-updated] userId: ${event.userId}`);
