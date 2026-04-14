@@ -39,27 +39,23 @@ const typeDefs = gql`
   }
 
   type Query {
-    getProfile(userId: String!): UserProfile
+    getProfile: UserProfile
     getAllProfiles: [UserProfile!]!
   }
 
   type Mutation {
     createOrUpdateProfile(
-      userId: String!
       university: String
       academicYear: String
     ): UserProfile!
 
-    addCourse(userId: String!, courseName: String!): UserProfile!
-    removeCourse(userId: String!, courseId: String!): UserProfile!
+    addCourse(courseName: String!): UserProfile!
+    removeCourse(courseId: String!): UserProfile!
 
-    addTopic(userId: String!, topicName: String!): UserProfile!
-    removeTopic(userId: String!, topicId: String!): UserProfile!
+    addTopic(topicName: String!): UserProfile!
+    removeTopic(topicId: String!): UserProfile!
 
-    updatePreferences(
-      userId: String!
-      preferences: StudyPreferenceInput!
-    ): UserProfile!
+    updatePreferences(preferences: StudyPreferenceInput!): UserProfile!
   }
 `;
 

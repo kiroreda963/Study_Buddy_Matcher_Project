@@ -5,7 +5,9 @@ const prisma = new PrismaClient();
 
 const resolvers = {
   Query: {
-    getProfile: async (_, { userId }) => {
+    getProfile: async (_, __, context) => {
+      if (!context.user) throw new Error("Unauthorized");
+      const { userId } = context.user;
       return prisma.userProfile.findUnique({
         where: { userId },
         include: { courses: true, topics: true, preferences: true },
@@ -19,17 +21,21 @@ const resolvers = {
   },
 
   Mutation: {
-    createOrUpdateProfile: async (_, { userId, university, academicYear }) => {
-      const profile = await prisma.userProfile.upsert({
+    createOrUpdateProfile: async (_, { university, academicYear }, context) => {
+      if (!context.user) throw new Error("Unauthorized");
+      const { userId } = context.user;
+      return prisma.userProfile.upsert({
         where: { userId },
         update: { university, academicYear },
         create: { userId, university, academicYear },
         include: { courses: true, topics: true, preferences: true },
       });
-      return profile;
     },
 
-    addCourse: async (_, { userId, courseName }) => {
+    addCourse: async (_, { courseName }, context) => {
+      if (!context.user) throw new Error("Unauthorized");
+      const { userId } = context.user;
+
       const profile = await prisma.userProfile.upsert({
         where: { userId },
         update: {},
@@ -54,7 +60,10 @@ const resolvers = {
       return updated;
     },
 
-    removeCourse: async (_, { userId, courseId }) => {
+    removeCourse: async (_, { courseId }, context) => {
+      if (!context.user) throw new Error("Unauthorized");
+      const { userId } = context.user;
+
       await prisma.course.delete({ where: { id: courseId } });
 
       const updated = await prisma.userProfile.findUnique({
@@ -70,7 +79,10 @@ const resolvers = {
       return updated;
     },
 
-    addTopic: async (_, { userId, topicName }) => {
+    addTopic: async (_, { topicName }, context) => {
+      if (!context.user) throw new Error("Unauthorized");
+      const { userId } = context.user;
+
       const profile = await prisma.userProfile.upsert({
         where: { userId },
         update: {},
@@ -95,7 +107,10 @@ const resolvers = {
       return updated;
     },
 
-    removeTopic: async (_, { userId, topicId }) => {
+    removeTopic: async (_, { topicId }, context) => {
+      if (!context.user) throw new Error("Unauthorized");
+      const { userId } = context.user;
+
       await prisma.topic.delete({ where: { id: topicId } });
 
       const updated = await prisma.userProfile.findUnique({
@@ -111,7 +126,10 @@ const resolvers = {
       return updated;
     },
 
-    updatePreferences: async (_, { userId, preferences }) => {
+    updatePreferences: async (_, { preferences }, context) => {
+      if (!context.user) throw new Error("Unauthorized");
+      const { userId } = context.user;
+
       const profile = await prisma.userProfile.upsert({
         where: { userId },
         update: {},
