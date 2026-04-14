@@ -1,4 +1,5 @@
 const { Kafka } = require("kafkajs");
+require("dotenv").config();
 
 const kafka = new Kafka({
   clientId: "user-auth-service",
@@ -57,7 +58,9 @@ const startConsumer = async () => {
     });
   } catch (error) {
     isConnected = false;
-    console.warn("⚠ Kafka consumer unavailable (service running in degraded mode)");
+    console.warn(
+      "⚠ Kafka consumer unavailable (service running in degraded mode)",
+    );
   }
 };
 
