@@ -1,78 +1,57 @@
-const { Kafka } = require("kafkajs");
+const { kafka, topics } = require("./config");
 
-const kafka = new Kafka({
-  clientId: "user-auth-service",
-  brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
-  connectionTimeout: 3000,
-  requestTimeout: 3000,
-  retry: {
-    maxRetryTime: 3000,
-    initialRetryTime: 100,
-    multiplier: 2,
-    randomizationFactor: 0.2,
-    maxAttempts: 3,
-  },
-});
+const groupId =
+  process.env.KAFKA_AVAILABILITY_CONSUMER_GROUP || "availability-service-group";
 
-const consumer = kafka.consumer({ groupId: "user-auth-service-group" });
-let isConnected = false;
+const consumer = kafka.consumer({ groupId });
 
 const startConsumer = async () => {
-  try {
-    await consumer.connect();
-    isConnected = true;
-    console.log("✓ Kafka consumer connected");
+  await consumer.connect();
+  await consumer.subscribe({
+    topic: topics.availability,
+    fromBeginning: false,
+  });
 
-    // Subscribe to topics
-    await consumer.subscribe({
-      topics: ["user-registered", "user-logged-in", "user-updated"],
-      fromBeginning: false,
-    });
+  console.log(
+    `Kafka consumer is listening on topic "${topics.availability}" with group "${groupId}".`,
+  );
 
-    // Start consuming messages
-    await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        try {
-          const event = JSON.parse(message.value.toString());
-          console.log(`✓ Event received: ${topic}`);
+  await consumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      const raw = message.value?.toString() || "{}";
+      let parsed = {};
 
-          // Process events based on topic
-          switch (topic) {
-            case "user-registered":
-              console.log(`[user-registered] userId: ${event.userId}`);
-              break;
-            case "user-logged-in":
-              console.log(`[user-logged-in] userId: ${event.userId}`);
-              break;
-            case "user-updated":
-              console.log(`[user-updated] userId: ${event.userId}`);
-              break;
-            default:
-              console.log(`[unknown] ${topic}`);
-          }
-        } catch (error) {
-          console.error("Error processing Kafka message:", error.message);
-        }
-      },
-    });
-  } catch (error) {
-    isConnected = false;
-    console.warn("⚠ Kafka consumer unavailable (service running in degraded mode)");
-  }
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = { rawMessage: raw };
+      }
+
+      console.log(
+        `[availability-consumer] topic=${topic} partition=${partition} key=${message.key?.toString() || ""}`,
+        parsed,
+      );
+    },
+  });
 };
 
-const stopConsumer = async () => {
+const shutdown = async () => {
   try {
-    if (isConnected) {
-      await consumer.disconnect();
-      console.log("Kafka consumer disconnected");
-    }
+    await consumer.disconnect();
   } catch (error) {
     console.error("Failed to disconnect Kafka consumer:", error.message);
   }
 };
 
-module.exports = {
-  startConsumer,
-  stopConsumer,
-};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+startConsumer().catch((error) => {
+  console.error("Kafka consumer failed to start:", error.message);
+  if (String(error.message).toLowerCase().includes("connection error")) {
+    console.error(
+      "Kafka broker is unreachable. Check KAFKA_BROKERS in .env and start your Kafka server before running the consumer.",
+    );
+  }
+  process.exit(1);
+});

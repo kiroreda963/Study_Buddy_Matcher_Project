@@ -1,72 +1,76 @@
-const { Kafka } = require("kafkajs");
-
-const kafka = new Kafka({
-  clientId: "user-auth-service",
-  brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
-  connectionTimeout: 3000,
-  requestTimeout: 3000,
-  retry: {
-    maxRetryTime: 3000,
-    initialRetryTime: 100,
-    multiplier: 2,
-    randomizationFactor: 0.2,
-    maxAttempts: 3,
-  },
-});
+const { kafka, brokers } = require("./config");
 
 const producer = kafka.producer();
-let isConnected = false;
+const admin = kafka.admin();
+
+let producerConnected = false;
+const readyTopics = new Set();
 
 const connectProducer = async () => {
+  if (producerConnected) {
+    return;
+  }
+
+  await producer.connect();
+  producerConnected = true;
+};
+
+const ensureTopic = async (topic) => {
+  if (readyTopics.has(topic)) {
+    return;
+  }
+
+  await admin.connect();
+  await admin.createTopics({
+    waitForLeaders: true,
+    topics: [{ topic, numPartitions: 1, replicationFactor: 1 }],
+  });
+  await admin.disconnect();
+  readyTopics.add(topic);
+};
+
+const publishEvent = async ({ topic, key, value, retries = 3 }) => {
   try {
-    await producer.connect();
-    isConnected = true;
-    console.log("✓ Kafka producer connected");
+    await connectProducer();
+    await ensureTopic(topic);
+
+    let remainingRetries = retries;
+    while (remainingRetries > 0) {
+      try {
+        await producer.send({
+          topic,
+          messages: [{ key, value: JSON.stringify(value) }],
+        });
+        return true;
+      } catch (sendError) {
+        remainingRetries -= 1;
+        if (remainingRetries === 0) {
+          throw sendError;
+        }
+        producerConnected = false;
+        await connectProducer();
+      }
+    }
+
+    return false;
   } catch (error) {
-    isConnected = false;
-    console.warn("⚠ Kafka producer unavailable (service running in degraded mode)");
-    // Don't throw - allow service to run without Kafka
+    console.error(
+      `Kafka producer failed for topic "${topic}" with brokers [${brokers.join(", ")}]:`,
+      error.message,
+    );
+    return false;
   }
 };
 
 const disconnectProducer = async () => {
-  try {
-    if (isConnected) {
-      await producer.disconnect();
-      console.log("Kafka producer disconnected");
-    }
-  } catch (error) {
-    console.error("Failed to disconnect Kafka producer:", error.message);
-  }
-};
-
-const publishEvent = async (topic, event) => {
-  if (!isConnected) {
-    console.debug(`ℹ Kafka unavailable - event not published: ${topic}`);
+  if (!producerConnected) {
     return;
   }
-
-  try {
-    await producer.send({
-      topic,
-      messages: [
-        {
-          key: event.userId || event.id,
-          value: JSON.stringify({
-            ...event,
-            timestamp: new Date().toISOString(),
-          }),
-        },
-      ],
-    });
-    console.log(`✓ Event published: ${topic}`);
-  } catch (error) {
-    console.warn(`⚠ Failed to publish event to ${topic}:`, error.message);
-  }
+  await producer.disconnect();
+  producerConnected = false;
 };
 
 module.exports = {
-  connectProducer,
-  disconnectProducer,
   publishEvent,
+  disconnectProducer,
 };
