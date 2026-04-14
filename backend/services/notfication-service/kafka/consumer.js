@@ -1,4 +1,5 @@
 const { Kafka } = require("kafkajs");
+const { prisma } = require("../db/prisma");
 
 const kafka = new Kafka({
   clientId: "user-auth-service",
@@ -14,7 +15,7 @@ const kafka = new Kafka({
   },
 });
 
-const consumer = kafka.consumer({ groupId: "user-auth-service-group" });
+const consumer = kafka.consumer({ groupId: "notification-service-group" });
 let isConnected = false;
 
 const startConsumer = async () => {
@@ -25,7 +26,7 @@ const startConsumer = async () => {
 
     // Subscribe to topics
     await consumer.subscribe({
-      topics: ["user-registered", "user-logged-in", "user-updated"],
+      topics: ["session-created", "session-invitation", "user-updated"],
       fromBeginning: false,
     });
 
@@ -38,11 +39,22 @@ const startConsumer = async () => {
 
           // Process events based on topic
           switch (topic) {
-            case "user-registered":
-              console.log(`[user-registered] userId: ${event.userId}`);
+            case "session-created":
+              const formatDate = new Date(event.date).toLocaleString();
+              sendNotification(
+                event.authorId,
+                `Session created Successfully on ${formatDate}`,
+              );
+              console.log(
+                `[session-created] userId: ${event.authorId} + formatDate: ${formatDate}`,
+              );
               break;
-            case "user-logged-in":
-              console.log(`[user-logged-in] userId: ${event.userId}`);
+            case "session-invitation":
+              sendNotification(
+                event.inviteeId,
+                `You have been invited to a session (ID: ${event.sessionId})`,
+              );
+              console.log(`[session-invitation] userId: ${event.inviteeId}`);
               break;
             case "user-updated":
               console.log(`[user-updated] userId: ${event.userId}`);
@@ -57,7 +69,23 @@ const startConsumer = async () => {
     });
   } catch (error) {
     isConnected = false;
-    console.warn("⚠ Kafka consumer unavailable (service running in degraded mode)");
+    console.warn(
+      "⚠ Kafka consumer unavailable (service running in degraded mode)",
+    );
+  }
+};
+
+const sendNotification = async (userId, message) => {
+  try {
+    await prisma.notification.create({
+      data: {
+        userId,
+        message,
+      },
+    });
+    console.log(`✓ Notification created for userId: ${userId}`);
+  } catch (error) {
+    console.error("Failed to create notification:", error.message);
   }
 };
 
