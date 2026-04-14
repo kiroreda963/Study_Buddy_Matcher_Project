@@ -35,6 +35,7 @@ const resolvers = {
       return await sessionController.createStudySession(
         args,
         context.user.userId,
+        args.inviteeId,
       );
     },
     updateStudySession: async (_, { id, ...data }, context) => {
@@ -57,7 +58,11 @@ const resolvers = {
       if (!context.user) {
         throw new Error("Unauthorized");
       }
-      return await sessionController.createInvitation(args);
+      return await sessionController.createInvitation(
+        context.user.userId,
+        args.inviteeId,
+        args.sessionId,
+      );
     },
     updateInvitationStatus: async (_, { id, status }, context) => {
       if (!context.user) {

@@ -60,7 +60,7 @@ const typeDefs = `#graphql
 
     deleteStudySession(id: ID!): StudySession!
 
-    createInvitation(userId: String!, sessionId: ID!): Invitation!
+    createInvitation(inviteeId: String!, sessionId: ID!): Invitation!
 
     updateInvitationStatus(id: ID!, status: InvitationStatus!): Invitation!
 

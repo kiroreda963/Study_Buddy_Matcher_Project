@@ -7,11 +7,12 @@ import {
 
 const sessionController = {
   // StudySession CRUD
-  async createStudySession(data, userId) {
+  async createStudySession(data, authorId, inviteeId) {
     const session = await prisma.studySession.create({
       data: {
         topic: data.topic,
-        authorId: userId,
+        authorId: authorId,
+        inviteeId: inviteeId,
         date: new Date(data.date),
         duration: data.duration,
         sessionType: data.sessionType,
@@ -97,13 +98,15 @@ const sessionController = {
   },
 
   // Invitation CRUD
-  async createInvitation(data) {
+  async createInvitation(authorId, inviteeId, sessionId) {
     const invitation = await prisma.invitation.create({
       data: {
-        userId: data.userId,
-        sessionId: data.sessionId,
+        authorId: authorId,
+        inviteeId: inviteeId,
+        sessionId: sessionId,
       },
     });
+
     await sendSessionInvitationEvent(invitation);
     return invitation;
   },
