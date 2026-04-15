@@ -119,7 +119,7 @@ const sessionController = {
 
   async getInvitationsByUser(userId) {
     return await prisma.invitation.findMany({
-      where: { userId },
+      where: { inviteeId: userId },
     });
   },
 

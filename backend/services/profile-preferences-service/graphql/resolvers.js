@@ -52,17 +52,43 @@ const resolvers = {
         include: { courses: true, topics: true, preferences: true },
       });
 
-      await publishEvent("UserPreferencesUpdated", {
+        await publishEvent("UserPreferencesUpdated", {
         eventName: "UserPreferencesUpdated",
-        payload: { userId, type: "course_added", courseName },
+        payload: {
+          userId,
+          type: "course_added",
+          courses: updated.courses.map(c => ({ name: c.name })),
+          topics: updated.topics.map(t => ({ name: t.name })),
+          preferences: updated.preferences
+            ? {
+                studyPace: updated.preferences.studyPace,
+                studyMode: updated.preferences.studyMode,
+                groupSize: updated.preferences.groupSize,
+                studyStyle: updated.preferences.studyStyle,
+              }
+            : null,
+        },
       });
 
       return updated;
     },
 
-    removeCourse: async (_, { courseId }, context) => {
+      removeCourse: async (_, { courseId }, context) => {
       if (!context.user) throw new Error("Unauthorized");
       const { userId } = context.user;
+
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        include: { profile: true },
+      });
+
+      if (!course) {
+        throw new Error("Course not found");
+      }
+
+      if (!course.profile || course.profile.userId !== userId) {
+        throw new Error("You can only remove your own courses");
+      }
 
       await prisma.course.delete({ where: { id: courseId } });
 
@@ -99,32 +125,58 @@ const resolvers = {
         include: { courses: true, topics: true, preferences: true },
       });
 
-      await publishEvent("UserPreferencesUpdated", {
-        eventName: "UserPreferencesUpdated",
-        payload: { userId, type: "topic_added", topicName },
-      });
+    await publishEvent("UserPreferencesUpdated", {
+      eventName: "UserPreferencesUpdated",
+      payload: {
+        userId,
+        type: "topic_added",
+        courses: updated.courses.map(c => ({ name: c.name })),
+        topics: updated.topics.map(t => ({ name: t.name })),
+        preferences: updated.preferences
+          ? {
+              studyPace: updated.preferences.studyPace,
+              studyMode: updated.preferences.studyMode,
+              groupSize: updated.preferences.groupSize,
+              studyStyle: updated.preferences.studyStyle,
+            }
+          : null,
+      },
+    });
 
       return updated;
     },
 
-    removeTopic: async (_, { topicId }, context) => {
-      if (!context.user) throw new Error("Unauthorized");
-      const { userId } = context.user;
+      removeTopic: async (_, { topicId }, context) => {
+    if (!context.user) throw new Error("Unauthorized");
+    const { userId } = context.user;
 
-      await prisma.topic.delete({ where: { id: topicId } });
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId },
+      include: { profile: true },
+    });
 
-      const updated = await prisma.userProfile.findUnique({
-        where: { userId },
-        include: { courses: true, topics: true, preferences: true },
-      });
+    if (!topic) {
+      throw new Error("Topic not found");
+    }
 
-      await publishEvent("UserPreferencesUpdated", {
-        eventName: "UserPreferencesUpdated",
-        payload: { userId, type: "topic_removed", topicId },
-      });
+    if (!topic.profile || topic.profile.userId !== userId) {
+      throw new Error("You can only remove your own topics");
+    }
 
-      return updated;
-    },
+    await prisma.topic.delete({ where: { id: topicId } });
+
+    const updated = await prisma.userProfile.findUnique({
+      where: { userId },
+      include: { courses: true, topics: true, preferences: true },
+    });
+
+    await publishEvent("UserPreferencesUpdated", {
+      eventName: "UserPreferencesUpdated",
+      payload: { userId, type: "topic_removed", topicId },
+    });
+
+    return updated;
+  },
 
     updatePreferences: async (_, { preferences }, context) => {
       if (!context.user) throw new Error("Unauthorized");
@@ -149,9 +201,22 @@ const resolvers = {
       });
 
       await publishEvent("UserPreferencesUpdated", {
-        eventName: "UserPreferencesUpdated",
-        payload: { userId, type: "preferences_updated", preferences },
-      });
+      eventName: "UserPreferencesUpdated",
+      payload: {
+        userId,
+        type: "preferences_updated",
+        courses: updated.courses.map(c => ({ name: c.name })),
+        topics: updated.topics.map(t => ({ name: t.name })),
+        preferences: updated.preferences
+          ? {
+              studyPace: updated.preferences.studyPace,
+              studyMode: updated.preferences.studyMode,
+              groupSize: updated.preferences.groupSize,
+              studyStyle: updated.preferences.studyStyle,
+            }
+          : null,
+      },
+    });
 
       return updated;
     },

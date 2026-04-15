@@ -30,8 +30,8 @@ async function handleUserPreferenceEvent(event) {
     return;
   }
 
-  await upsertProfileProjectionFromProfileService(String(userId));
-  await generateMatchesForUser(String(userId));
+  await upsertProfileProjectionFromProfileService(String(userId), event.payload);
+  await generateMatchesForUser({ user: { userId: String(userId) } });
 }
 
 async function handleAvailabilityEvent(event) {
@@ -41,7 +41,7 @@ async function handleAvailabilityEvent(event) {
   }
 
   await upsertAvailabilityProjection(slot);
-  await generateMatchesForUser(String(slot.userId));
+  await generateMatchesForUser({ user: { userId: String(slot.userId) } });
 }
 
 async function startConsumer() {

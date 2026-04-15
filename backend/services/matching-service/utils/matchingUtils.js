@@ -70,19 +70,24 @@ function calculateScore(profileA, profileB) {
     reasons.push("Overlapping availability");
   }
 
-  if (profileA.preferredMode && profileA.preferredMode === profileB.preferredMode) {
+  if (profileA.preferredMode && profileA.preferredMode.toLowerCase() === profileB.preferredMode.toLowerCase()) {
     score += 10;
     reasons.push("Same study mode");
   }
 
-  if (profileA.preferredStyle && profileA.preferredStyle === profileB.preferredStyle) {
+  if (profileA.preferredStyle && profileA.preferredStyle.toLowerCase() === profileB.preferredStyle.toLowerCase()) {
     score += 5;
     reasons.push("Same study style");
   }
 
-  if (profileA.preferredPace && profileA.preferredPace === profileB.preferredPace) {
+  if (profileA.preferredPace && profileA.preferredPace.toLowerCase() === profileB.preferredPace.toLowerCase()) {
     score += 5;
     reasons.push("Same study pace");
+  }
+
+  if (profileA.preferredGroupSize && profileA.preferredGroupSize === profileB.preferredGroupSize) {
+    score += 5;
+    reasons.push("Same preferred group size");
   }
 
   return {

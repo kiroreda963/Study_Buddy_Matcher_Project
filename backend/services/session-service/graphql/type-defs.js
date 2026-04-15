@@ -35,7 +35,7 @@ const typeDefs = `#graphql
     studySessions: [StudySession!]!
     studySession(id: ID!): StudySession
     invitations(sessionId: ID!): [Invitation!]!
-    invitationsByUser(userId: String!): [Invitation!]!
+    invitationsByUser(): [Invitation!]!
   }
 
   type Mutation {
@@ -66,9 +66,9 @@ const typeDefs = `#graphql
 
     deleteInvitation(id: ID!): Invitation!
 
-    joinStudySession(userId: String!, sessionId: ID!): StudySession!
+    joinStudySession(sessionId: ID!): StudySession!
 
-    leaveStudySession(userId: String!, sessionId: ID!): StudySession!
+    leaveStudySession(sessionId: ID!): StudySession!
   }
 `;
 

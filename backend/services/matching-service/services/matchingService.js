@@ -2,82 +2,86 @@ const { prisma } = require("../db/prisma");
 const { calculateScore } = require("../utils/matchingUtils");
 const { publishEvent } = require("../kafka/producer");
 
-async function upsertProfileProjectionFromProfileService(context) {
-  const userId = context.user?.userId;
+async function upsertProfileProjectionFromProfileService(contextOrUserId, profilePayload = null) {
+  const userId =
+    typeof contextOrUserId === "string"
+      ? contextOrUserId
+      : contextOrUserId?.user?.userId;
+
   if (!userId) {
     throw new Error("User not authenticated");
   }
 
-  // Since we can't make HTTP calls, check if profile already exists locally
   const existingProfile = await prisma.matchProfile.findUnique({
-    where: { userId },
-    include: { courses: true, topics: true },
+    where: { userId: String(userId) },
   });
 
-  if (existingProfile) {
-    // Profile already exists, no need to update
-    return existingProfile;
+  if (!profilePayload && !existingProfile) {
+    // Do not create an empty projection when no profile payload is available.
+    return null;
   }
 
-  // Create a default profile if none exists
-  const profileRecord = await prisma.matchProfile.create({
-    data: {
-      userId,
-      preferredPace: null,
-      preferredMode: null,
-      preferredGroupSize: null,
-      preferredStyle: null,
-    },
-  });
-
-  return profileRecord;
-}
-
-async function upsertAvailabilityProjection(slotPayload) {
-  if (!slotPayload?.id || !slotPayload?.userId) {
-    return;
-  }
-
-  const matchProfile = await prisma.matchProfile.upsert({
-    where: { userId: String(slotPayload.userId) },
-    update: {},
-    create: { userId: String(slotPayload.userId) },
-  });
-
-  const startDate = new Date(slotPayload.startTime);
-  const endDate = new Date(slotPayload.endTime);
-
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    return;
-  }
-
-  await prisma.availabilitySlot.upsert({
-    where: { id: String(slotPayload.id) },
+  const profile = await prisma.matchProfile.upsert({
+    where: { userId: String(userId) },
     update: {
-      dayOfWeek: startDate.toLocaleDateString("en-US", { weekday: "long" }),
-      startTime: startDate.toISOString(),
-      endTime: endDate.toISOString(),
-      userId: String(slotPayload.userId),
-      matchProfileId: matchProfile.id,
+      preferredPace: profilePayload?.preferences?.studyPace ?? undefined,
+      preferredMode: profilePayload?.preferences?.studyMode ?? undefined,
+      preferredGroupSize: profilePayload?.preferences?.groupSize ? parseInt(profilePayload.preferences.groupSize) : undefined,
+      preferredStyle: profilePayload?.preferences?.studyStyle ?? undefined,
     },
     create: {
-      id: String(slotPayload.id),
-      dayOfWeek: startDate.toLocaleDateString("en-US", { weekday: "long" }),
-      startTime: startDate.toISOString(),
-      endTime: endDate.toISOString(),
-      userId: String(slotPayload.userId),
-      matchProfileId: matchProfile.id,
+      userId: String(userId),
+      preferredPace: profilePayload?.preferences?.studyPace ?? null,
+      preferredMode: profilePayload?.preferences?.studyMode ?? null,
+      preferredGroupSize: profilePayload?.preferences?.groupSize ? parseInt(profilePayload.preferences.groupSize) : null,
+      preferredStyle: profilePayload?.preferences?.studyStyle ?? null,
+    },
+  });
+
+  if (profilePayload?.courses) {
+    await prisma.course.deleteMany({
+      where: { matchProfileId: profile.id }
+    });
+
+    if (profilePayload.courses.length > 0) {
+      await prisma.course.createMany({
+        data: profilePayload.courses.map((course) => ({
+          name: course.name,
+          matchProfileId: profile.id,
+        })),
+      });
+    }
+  }
+
+  if (profilePayload?.topics) {
+    await prisma.topic.deleteMany({
+      where: { matchProfileId: profile.id }
+    });
+
+    if (profilePayload.topics.length > 0) {
+      await prisma.topic.createMany({
+        data: profilePayload.topics.map((topic) => ({
+          name: topic.name,
+          matchProfileId: profile.id,
+        })),
+      });
+    }
+  }
+
+  return prisma.matchProfile.findUnique({
+    where: { userId: String(userId) },
+    include: {
+      courses: true,
+      topics: true,
+      availabilitySlots: true,
     },
   });
 }
-
 async function generateMatchesForUser(context) {
   const userId = context.user?.userId;
   if (!userId) {
     throw new Error("User not authenticated");
   }
-  
-  await upsertProfileProjectionFromProfileService(context);
 
   const currentUser = await prisma.matchProfile.findUnique({
     where: { userId },
@@ -154,9 +158,9 @@ async function getMatchProfileSnapshot(context) {
   if (!userId) {
     throw new Error("User not authenticated");
   }
-  
+
   const profile = await prisma.matchProfile.findUnique({
-    where: { userId },
+    where: { userId: String(userId) },
     include: {
       courses: true,
       topics: true,
@@ -172,14 +176,13 @@ async function getMatchProfileSnapshot(context) {
     userId: profile.userId,
     preferredPace: profile.preferredPace,
     preferredMode: profile.preferredMode,
-    preferredGroupSize: profile.preferredGroupSize,
+    preferredGroupSize: profile.preferredGroupSize ? parseInt(profile.preferredGroupSize) : null,
     preferredStyle: profile.preferredStyle,
     courses: profile.courses.map((course) => course.name),
     topics: profile.topics.map((topic) => topic.name),
     availabilitySlots: profile.availabilitySlots,
   };
 }
-
 async function getMatchById(context, matchId) {
   const userId = context.user?.userId;
   if (!userId) {
@@ -338,7 +341,7 @@ async function acceptBuddyRequest(context, requestId) {
     throw new Error("Request is no longer pending");
   }
   
-  const [connection, deletedRequest] = await prisma.$transaction([
+  const [connection, updatedRequest] = await prisma.$transaction([
     // Create connection between users with normalized ordering
     prisma.connection.create({
       data: {
@@ -346,10 +349,9 @@ async function acceptBuddyRequest(context, requestId) {
         userId2: request.senderId < request.receiverId ? request.receiverId : request.senderId
       }
     }),
-    // Delete the accepted request from database
-    prisma.buddyRequest.delete({
-      where: { id: requestId }
-    })
+ prisma.buddyRequest.update({
+    where: { id: requestId },
+    data: { status: 'ACCEPTED' }})
   ]);
 
   // Publish Kafka event for buddy request acceptance
@@ -367,8 +369,7 @@ async function acceptBuddyRequest(context, requestId) {
     }
   });
   
-  return connection;
-}
+return updatedRequest;}
 
 async function rejectBuddyRequest(context, requestId) {
   const userId = context.user?.userId;
@@ -496,6 +497,57 @@ async function removeConnection(context, connectedUserId) {
     message: "Connection removed successfully"
   };
 }
+async function upsertAvailabilityProjection(slot) {
+  if (!slot?.userId || !slot?.id) {
+    throw new Error("Invalid availability slot payload");
+  }
+
+  const userId = String(slot.userId);
+
+  // Derive dayOfWeek from startTime if not provided
+  const dayOfWeek = slot.dayOfWeek || new Date(slot.startTime).toLocaleDateString("en-US", { weekday: "long" });
+
+  const profile = await prisma.matchProfile.upsert({
+    where: { userId },
+    update: {},
+    create: {
+      userId,
+      preferredPace: null,
+      preferredMode: null,
+      preferredGroupSize: null,
+      preferredStyle: null,
+    },
+  });
+
+  await prisma.availabilitySlot.upsert({
+    where: { id: String(slot.id) },
+    update: {
+      dayOfWeek,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      userId,
+      matchProfileId: profile.id,
+    },
+    create: {
+      id: String(slot.id),
+      dayOfWeek,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      userId,
+      matchProfileId: profile.id,
+    },
+  });
+
+  return prisma.matchProfile.findUnique({
+    where: { userId },
+    include: {
+      courses: true,
+      topics: true,
+      availabilitySlots: true,
+    },
+  });
+}
+
 
 
 module.exports = {
