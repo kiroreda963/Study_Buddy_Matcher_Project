@@ -65,16 +65,25 @@ async function startConsumer() {
         }
 
         try {
-          if (topic === (process.env.KAFKA_PROFILE_TOPIC || "UserPreferencesUpdated")) {
+          if (
+            topic ===
+            (process.env.KAFKA_PROFILE_TOPIC || "UserPreferencesUpdated")
+          ) {
             await handleUserPreferenceEvent(event);
             return;
           }
 
-          if (topic === (process.env.KAFKA_AVAILABILITY_TOPIC || "availability-events")) {
+          if (
+            topic ===
+            (process.env.KAFKA_AVAILABILITY_TOPIC || "availability-events")
+          ) {
             await handleAvailabilityEvent(event);
           }
         } catch (error) {
-          console.warn(`Matching event handler failed for topic ${topic}:`, error.message);
+          console.warn(
+            `Matching event handler failed for topic ${topic}:`,
+            error.message,
+          );
         }
       },
     });
@@ -91,7 +100,10 @@ async function stopConsumer() {
       isConnected = false;
     }
   } catch (error) {
-    console.warn("Failed to disconnect matching Kafka consumer:", error.message);
+    console.warn(
+      "Failed to disconnect matching Kafka consumer:",
+      error.message,
+    );
   }
 }
 

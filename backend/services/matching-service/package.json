@@ -1,14 +1,15 @@
 {
   "dependencies": {
     "@apollo/server": "^5.5.0",
-    "@prisma/client": "^5.22.0",
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "graphql": "^16.13.2",
     "graphql-tag": "^2.12.6",
     "jsonwebtoken": "^9.0.3",
     "kafkajs": "^2.2.4",
-    "prisma": "^5.22.0"
+    "pg": "^8.20.0"
   },
   "name": "matching-service",
   "version": "1.0.0",
@@ -24,6 +25,8 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "dotenv": "^17.4.2",
+    "prisma": "^7.7.0",
     "@types/node": "^25.5.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^6.0.2"

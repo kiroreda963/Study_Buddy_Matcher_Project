@@ -28,7 +28,10 @@ async function disconnectProducer() {
       isConnected = false;
     }
   } catch (error) {
-    console.warn("Failed to disconnect matching Kafka producer:", error.message);
+    console.warn(
+      "Failed to disconnect matching Kafka producer:",
+      error.message,
+    );
   }
 }
 

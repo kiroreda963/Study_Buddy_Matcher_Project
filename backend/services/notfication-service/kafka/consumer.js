@@ -1,5 +1,6 @@
 const { Kafka } = require("kafkajs");
 const { prisma } = require("../db/prisma");
+require("dotenv").config();
 
 const kafka = new Kafka({
   clientId: "user-auth-service",
@@ -18,6 +19,9 @@ const kafka = new Kafka({
 const consumer = kafka.consumer({ groupId: "notification-service-group" });
 let isConnected = false;
 
+// In-memory cache for sessions to check for reminders
+const sessionCache = new Map();
+
 const startConsumer = async () => {
   try {
     await consumer.connect();
@@ -26,7 +30,12 @@ const startConsumer = async () => {
 
     // Subscribe to topics
     await consumer.subscribe({
-      topics: ["session-created", "session-invitation", "user-updated"],
+      topics: [
+        "session-created",
+        "session-invitation",
+        "buddy-request-sent",
+        "match-generated",
+      ],
       fromBeginning: false,
     });
 
@@ -44,7 +53,18 @@ const startConsumer = async () => {
               sendNotification(
                 event.authorId,
                 `Session created Successfully on ${formatDate}`,
+                null,
+                "SESSION_CREATED",
               );
+              // Cache the session for reminder checks
+              sessionCache.set(event.id, {
+                id: event.id,
+                authorId: event.authorId,
+                topic: event.topic,
+                date: new Date(event.date),
+                duration: event.duration,
+                participants: event.participants,
+              });
               console.log(
                 `[session-created] userId: ${event.authorId} + formatDate: ${formatDate}`,
               );
@@ -52,12 +72,31 @@ const startConsumer = async () => {
             case "session-invitation":
               sendNotification(
                 event.inviteeId,
-                `You have been invited to a session (ID: ${event.sessionId})`,
+                `You have been invited to a session`,
+                event.sessionId,
+                "SESSION_INVITATION",
+                event.sessionId,
               );
               console.log(`[session-invitation] userId: ${event.inviteeId}`);
               break;
-            case "user-updated":
-              console.log(`[user-updated] userId: ${event.userId}`);
+            case "buddy-request-sent":
+              sendNotification(
+                event.receiverId,
+                `You have received a buddy request`,
+                event.senderId,
+                "BUDDY_REQUEST_SENT",
+              );
+              console.log(
+                `[buddy-request-recieved] userId: ${event.receiverId}`,
+              );
+            case "match-generated":
+              sendNotification(
+                event.userId,
+                `You have a new match!`,
+                event.matchedUserId,
+                "MATCH_GENERATED",
+              );
+              console.log(`[match-generated] userId: ${event.userId}`);
               break;
             default:
               console.log(`[unknown] ${topic}`);
@@ -75,12 +114,21 @@ const startConsumer = async () => {
   }
 };
 
-const sendNotification = async (userId, message) => {
+const sendNotification = async (
+  userId,
+  message,
+  senderId,
+  type,
+  sessionId = null,
+) => {
   try {
     await prisma.notification.create({
       data: {
-        userId,
-        message,
+        userId: userId,
+        senderId: senderId,
+        message: message,
+        type: type,
+        sessionId: sessionId,
       },
     });
     console.log(`✓ Notification created for userId: ${userId}`);
@@ -100,7 +148,74 @@ const stopConsumer = async () => {
   }
 };
 
+// Scheduled job to send reminders 15 minutes before session starts
+const startReminderScheduler = () => {
+  const checkInterval = 60 * 1000; // Check every minute
+  const reminderWindow = 15 * 60 * 1000; // 15 minutes in milliseconds
+  const sentReminders = new Set(); // Track which reminders have been sent
+
+  setInterval(async () => {
+    try {
+      const now = new Date();
+      const in15Minutes = new Date(now.getTime() + reminderWindow);
+
+      // Check all cached sessions
+      for (const [sessionId, session] of sessionCache) {
+        const timeDiff = session.date.getTime() - now.getTime();
+
+        // If session starts between now and 15 minutes from now
+        if (timeDiff > 0 && timeDiff <= reminderWindow) {
+          // Check if we've already sent a reminder for this session
+          if (!sentReminders.has(sessionId)) {
+            const timeInMinutes = Math.round(timeDiff / 60000);
+            const message = `Your study session on "${session.topic}" is starting in ${timeInMinutes} minutes!`;
+
+            // Send reminder to session author
+            await sendNotification(
+              session.authorId,
+              message,
+              null,
+              "SESSION_REMINDER",
+              sessionId,
+            );
+
+            // Send reminder to all participants
+            if (session.participants && session.participants.length > 0) {
+              for (const participantId of session.participants) {
+                await sendNotification(
+                  participantId,
+                  message,
+                  null,
+                  "SESSION_REMINDER",
+                  sessionId,
+                );
+              }
+            }
+
+            sentReminders.add(sessionId);
+            console.log(
+              `[Reminder] Session reminder sent for session: ${sessionId} (${timeInMinutes} minutes until start)`,
+            );
+          }
+        }
+
+        // Clean up sessions that have already started and ended
+        const endTime = session.date.getTime() + session.duration * 60 * 1000;
+        if (now.getTime() > endTime) {
+          sessionCache.delete(sessionId);
+          sentReminders.delete(sessionId);
+        }
+      }
+    } catch (error) {
+      console.error("Error in reminder scheduler:", error.message);
+    }
+  }, checkInterval);
+
+  console.log("✓ Session reminder scheduler started (checks every minute)");
+};
+
 module.exports = {
   startConsumer,
   stopConsumer,
+  startReminderScheduler,
 };

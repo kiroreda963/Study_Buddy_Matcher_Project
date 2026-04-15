@@ -4,7 +4,11 @@ const { startStandaloneServer } = require("@apollo/server/standalone");
 const { typeDefs } = require("./graphql/type-defs");
 const { resolvers } = require("./graphql/resolver");
 const { createContext } = require("./graphql/context");
-const { startConsumer, stopConsumer } = require("./kafka/consumer");
+const {
+  startConsumer,
+  stopConsumer,
+  startReminderScheduler,
+} = require("./kafka/consumer");
 const { prisma } = require("./db/prisma");
 
 const PORT = process.env.PORT;
@@ -25,6 +29,9 @@ async function bootstrap() {
 
   // Start Kafka producer and consumer after server is running
   await startConsumer();
+
+  // Start the reminder scheduler
+  startReminderScheduler();
 
   console.log(`notfication service running on ${url}`);
 }
