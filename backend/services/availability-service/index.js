@@ -7,7 +7,7 @@ const typeDefs = require("./graphql/type-defs");
 const resolvers = require("./graphql/resolvers");
 const { buildContext, shutdownResources } = require("./graphql/context");
 
-const PORT = Number(process.env.PORT || 3001);
+const PORT = Number(process.env.PORT);
 
 const server = new ApolloServer({
   typeDefs,

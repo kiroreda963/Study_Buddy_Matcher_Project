@@ -23,9 +23,79 @@ services:
       dockerfile: Dockerfile
     container_name: user-auth-service
     ports:
-      - "3006:3006"
+      - "3001:3001"
     env_file:
       - ./services/user-auth-service/.env
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - kafka
+
+  session-service:
+    build:
+      context: ./services/session-service
+      dockerfile: Dockerfile
+    container_name: session-service
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./services/session-service/.env
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - kafka
+
+  profile-preferences-service:
+    build:
+      context: ./services/profile-preferences-service
+      dockerfile: Dockerfile
+    container_name: profile-preferences-service
+    ports:
+      - "3003:3003"
+    env_file:
+      - ./services/profile-preferences-service/.env
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - kafka
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "3004:3004"
+    env_file:
+      - ./services/notification-service/.env
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - kafka
+
+  matching-service-service:
+    build:
+      context: ./services/matching-service
+      dockerfile: Dockerfile
+    container_name: matching-service-service
+    ports:
+      - "3005:3005"
+    env_file:
+      - ./services/matching-service/.env
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - kafka
+
+  availability-service:
+    build:
+      context: ./services/availability-service
+      dockerfile: Dockerfile
+    container_name: availability-service
+    ports:
+      - "3006:3006"
+    env_file:
+      - ./services/availability-service/.env
     environment:
       KAFKA_BROKERS: kafka:9092
     depends_on:

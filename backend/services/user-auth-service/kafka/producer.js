@@ -2,7 +2,7 @@ const { Kafka } = require("kafkajs");
 
 const kafka = new Kafka({
   clientId: "user-auth-service",
-  brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+  brokers: process.env.KAFKA_BROKERS.split(","),
   connectionTimeout: 3000,
   requestTimeout: 3000,
   retry: {
@@ -24,7 +24,9 @@ const connectProducer = async () => {
     console.log("✓ Kafka producer connected");
   } catch (error) {
     isConnected = false;
-    console.warn("⚠ Kafka producer unavailable (service running in degraded mode)");
+    console.warn(
+      "⚠ Kafka producer unavailable (service running in degraded mode)",
+    );
     // Don't throw - allow service to run without Kafka
   }
 };

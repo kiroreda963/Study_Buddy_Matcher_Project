@@ -8,7 +8,6 @@ import { connectProducer, disconnectProducer } from "./kafka/producer.js";
 import { prisma } from "./config/prisma.js";
 import dotenv from "dotenv";
 dotenv.config();
-console.log(process.env.MY_VARIABLE);
 const PORT = process.env.PORT;
 
 async function bootstrap() {

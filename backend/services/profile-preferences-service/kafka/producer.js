@@ -1,8 +1,9 @@
 const { Kafka } = require("kafkajs");
+require("dotenv").config();
 
 const kafka = new Kafka({
   clientId: "profile-preferences-service",
-  brokers: [process.env.KAFKA_BROKER || "localhost:9092"],
+  brokers: process.env.KAFKA_BROKERS.split(","),
 });
 
 const producer = kafka.producer();

@@ -3,8 +3,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const { Kafka } = require("kafkajs");
 
-const brokerEnv =
-  process.env.KAFKA_BROKERS || process.env.KAFKA_BROKER || "localhost:9092";
+const brokerEnv = process.env.KAFKA_BROKERS;
 
 const brokers = brokerEnv
   .split(",")

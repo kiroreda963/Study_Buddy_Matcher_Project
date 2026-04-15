@@ -1,7 +1,6 @@
 const { kafka, topics } = require("./config");
 
-const groupId =
-  process.env.KAFKA_AVAILABILITY_CONSUMER_GROUP || "availability-service-group";
+const groupId = "availability-service-group";
 
 const consumer = kafka.consumer({ groupId });
 

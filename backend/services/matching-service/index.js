@@ -12,7 +12,7 @@ const { connectProducer, disconnectProducer } = require("./kafka/producer");
 const { startConsumer, stopConsumer } = require("./kafka/consumer");
 const { prisma } = require("./db/prisma");
 
-const PORT = Number(process.env.PORT || 3002);
+const PORT = Number(process.env.PORT);
 
 async function startServer() {
   await connectProducer();

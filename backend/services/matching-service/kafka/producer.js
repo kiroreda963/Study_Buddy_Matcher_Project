@@ -1,8 +1,9 @@
 const { Kafka } = require("kafkajs");
+require("dotenv").config();
 
 const kafka = new Kafka({
   clientId: "matching-service",
-  brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+  brokers: process.env.KAFKA_BROKERS.split(","),
   connectionTimeout: 3000,
   requestTimeout: 3000,
 });
