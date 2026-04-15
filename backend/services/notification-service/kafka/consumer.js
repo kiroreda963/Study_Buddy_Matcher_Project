@@ -80,24 +80,25 @@ const startConsumer = async () => {
               console.log(`[session-invitation] userId: ${event.inviteeId}`);
               break;
             case "buddy-request-sent":
+              console.log(event);
               sendNotification(
-                event.receiverId,
+                event.payload.receiverId,
                 `You have received a buddy request`,
-                event.senderId,
+                event.payload.senderId,
                 "BUDDY_REQUEST_SENT",
               );
               console.log(
-                `[buddy-request-recieved] userId: ${event.receiverId}`,
+                `[buddy-request-recieved] userId: ${event.payload.receiverId}`,
               );
               break;
             case "match-generated":
               sendNotification(
-                event.userId,
+                event.payload.userId,
                 `You have a new match!`,
-                event.matchedUserId,
+                event.payload.matchedUserId,
                 "MATCH_GENERATED",
               );
-              console.log(`[match-generated] userId: ${event.userId}`);
+              console.log(`[match-generated] userId: ${event.payload.userId}`);
               break;
             default:
               console.log(`[unknown] ${topic}`);
