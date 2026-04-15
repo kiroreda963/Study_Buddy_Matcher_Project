@@ -54,7 +54,6 @@ const typeDefs = gql`
 
 
   type Query {
-    getMatches: [Match!]!
     getMatchById(matchId: ID!): Match
     getBuddyRequests: [BuddyRequest!]!
     getConnections: [Connection!]!
@@ -69,7 +68,6 @@ const typeDefs = gql`
     cancelBuddyRequest(requestId: ID!): BuddyRequest!
     ignoreMatch(matchId: ID!): Match!
     removeConnection(connectedUserId: String!): RemoveConnectionResponse!
-    refreshUserProjection: MatchProfileSnapshot
   }
 `;
 

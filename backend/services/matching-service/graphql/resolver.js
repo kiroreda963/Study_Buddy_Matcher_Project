@@ -1,8 +1,6 @@
 const {
   generateMatchesForUser,
-  getMatches,
   getMatchProfileSnapshot,
-  refreshProfileProjection,
   getMatchById,
   getBuddyRequests,
   getConnections,
@@ -16,12 +14,6 @@ const {
 
 const resolvers = {
   Query: {
-    getMatches: async (_, args, contextValue) => {
-      if (!contextValue.user?.userId) {
-        throw new Error("Unauthorized");
-      }
-      return getMatches(contextValue);
-    },
     getMatchById: async (_, { matchId }, contextValue) => {
       if (!contextValue.user?.userId) {
         throw new Error("Unauthorized");
@@ -90,13 +82,8 @@ const resolvers = {
       }
       return removeConnection(contextValue, connectedUserId);
     },
-    refreshUserProjection: async (_, args, contextValue) => {
-      if (!contextValue.user?.userId) {
-        throw new Error("Unauthorized");
-      }
-      return refreshProfileProjection(contextValue);
-    },
   },
 };
+
 
 module.exports = resolvers;

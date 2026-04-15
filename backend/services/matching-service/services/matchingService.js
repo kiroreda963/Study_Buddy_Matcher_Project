@@ -1,66 +1,34 @@
 const { prisma } = require("../db/prisma");
 const { calculateScore } = require("../utils/matchingUtils");
 const { publishEvent } = require("../kafka/producer");
-const { fetchProfileByUserId } = require("./profileIntegration");
 
 async function upsertProfileProjectionFromProfileService(context) {
   const userId = context.user?.userId;
   if (!userId) {
     throw new Error("User not authenticated");
   }
-  
-  const profile = await fetchProfileByUserId(userId, context.token);
 
-  if (!profile) {
-    throw new Error("Profile not found in profile-preferences-service");
-  }
-
-  const profileRecord = await prisma.matchProfile.upsert({
+  // Since we can't make HTTP calls, check if profile already exists locally
+  const existingProfile = await prisma.matchProfile.findUnique({
     where: { userId },
-    update: {
-      preferredPace: profile.preferences?.studyPace || null,
-      preferredMode: profile.preferences?.studyMode || null,
-      preferredGroupSize: profile.preferences?.groupSize
-        ? Number(profile.preferences.groupSize)
-        : null,
-      preferredStyle: profile.preferences?.studyStyle || null,
-    },
-    create: {
+    include: { courses: true, topics: true },
+  });
+
+  if (existingProfile) {
+    // Profile already exists, no need to update
+    return existingProfile;
+  }
+
+  // Create a default profile if none exists
+  const profileRecord = await prisma.matchProfile.create({
+    data: {
       userId,
-      preferredPace: profile.preferences?.studyPace || null,
-      preferredMode: profile.preferences?.studyMode || null,
-      preferredGroupSize: profile.preferences?.groupSize
-        ? Number(profile.preferences.groupSize)
-        : null,
-      preferredStyle: profile.preferences?.studyStyle || null,
+      preferredPace: null,
+      preferredMode: null,
+      preferredGroupSize: null,
+      preferredStyle: null,
     },
   });
-
-  await prisma.course.deleteMany({
-    where: { matchProfileId: profileRecord.id },
-  });
-
-  await prisma.topic.deleteMany({
-    where: { matchProfileId: profileRecord.id },
-  });
-
-  if (Array.isArray(profile.courses) && profile.courses.length > 0) {
-    await prisma.course.createMany({
-      data: profile.courses.map((course) => ({
-        name: course.name,
-        matchProfileId: profileRecord.id,
-      })),
-    });
-  }
-
-  if (Array.isArray(profile.topics) && profile.topics.length > 0) {
-    await prisma.topic.createMany({
-      data: profile.topics.map((topic) => ({
-        name: topic.name,
-        matchProfileId: profileRecord.id,
-      })),
-    });
-  }
 
   return profileRecord;
 }
@@ -101,11 +69,6 @@ async function upsertAvailabilityProjection(slotPayload) {
       matchProfileId: matchProfile.id,
     },
   });
-}
-
-async function refreshProfileProjection(context) {
-  await upsertProfileProjectionFromProfileService(context);
-  return getMatchProfileSnapshot(context);
 }
 
 async function generateMatchesForUser(context) {
@@ -184,24 +147,6 @@ async function generateMatchesForUser(context) {
   }
 
   return savedMatches.sort((a, b) => b.score - a.score);
-}
-
-async function getMatches(context, limit = null) {
-  const userId = context.user?.userId;
-  if (!userId) {
-    throw new Error("User not authenticated");
-  }
-  
-  const query = {
-    where: { userId, ignored: false },
-    orderBy: { score: "desc" }
-  };
-  
-  if (limit) {
-    query.take = limit;
-  }
-  
-  return prisma.match.findMany(query);
 }
 
 async function getMatchProfileSnapshot(context) {
@@ -287,10 +232,8 @@ async function getBuddyRequests(context) {
   
   return prisma.buddyRequest.findMany({
     where: {
-      OR: [
-        { senderId: userId },
-        { receiverId: userId }
-      ]
+      receiverId: userId,
+      status: 'PENDING'
     },
     orderBy: { createdAt: "desc" }
   });
@@ -395,17 +338,17 @@ async function acceptBuddyRequest(context, requestId) {
     throw new Error("Request is no longer pending");
   }
   
-  const [updatedRequest, connection] = await prisma.$transaction([
-    prisma.buddyRequest.update({
-      where: { id: requestId },
-      data: { status: 'ACCEPTED' }
-    }),
+  const [connection, deletedRequest] = await prisma.$transaction([
     // Create connection between users with normalized ordering
     prisma.connection.create({
       data: {
         userId1: request.senderId < request.receiverId ? request.senderId : request.receiverId,
         userId2: request.senderId < request.receiverId ? request.receiverId : request.senderId
       }
+    }),
+    // Delete the accepted request from database
+    prisma.buddyRequest.delete({
+      where: { id: requestId }
     })
   ]);
 
@@ -424,7 +367,7 @@ async function acceptBuddyRequest(context, requestId) {
     }
   });
   
-  return updatedRequest;
+  return connection;
 }
 
 async function rejectBuddyRequest(context, requestId) {
@@ -557,9 +500,7 @@ async function removeConnection(context, connectedUserId) {
 
 module.exports = {
   generateMatchesForUser,
-  getMatches,
   getMatchProfileSnapshot,
-  refreshProfileProjection,
   upsertAvailabilityProjection,
   upsertProfileProjectionFromProfileService,
   getMatchById,
