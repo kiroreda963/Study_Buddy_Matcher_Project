@@ -89,6 +89,7 @@ const startConsumer = async () => {
               console.log(
                 `[buddy-request-recieved] userId: ${event.receiverId}`,
               );
+              break;
             case "match-generated":
               sendNotification(
                 event.userId,
