@@ -4,12 +4,13 @@ import { sendSessionCreatedEvent, sendSessionInvitationEvent, sendSessionUpdated
 
 const sessionController = {
     // StudySession CRUD
-    async createStudySession(data) {
+    async createStudySession(data, authorId, inviteeId) {
         const session = await prisma.studySession.create({
             data: {
                 topic: data.topic,
+                authorId: authorId,
+                inviteeId: inviteeId,
                 date: new Date(data.date),
-                time: data.time,
                 duration: data.duration,
                 sessionType: data.sessionType,
                 contactInfo: data.contactInfo,
@@ -33,16 +34,29 @@ const sessionController = {
         });
     },
 
-    async updateStudySession(id, data) {
-        const session = await prisma.studySession.update({
+    async updateStudySession(id, data, userId) {
+        const existingSession = await prisma.studySession.findUnique({
+            where: { id },
+        });
+
+        if (!existingSession) {
+            throw new Error("Session not found");
+        }
+
+        if (existingSession.authorId !== userId) {
+            throw new Error("Unauthorized");
+        }
+
+        const updatedSession = await prisma.studySession.update({
             where: { id },
             data: {
                 ...data,
                 date: data.date ? new Date(data.date) : undefined,
             },
         });
-        await sendSessionUpdatedEvent(session);
-        return session;
+
+        await sendSessionUpdatedEvent(updatedSession);
+        return updatedSession;
     },
 
     async joinStudySession(userId, sessionId) {
@@ -81,13 +95,15 @@ const sessionController = {
     },
 
     // Invitation CRUD
-    async createInvitation(data) {
+    async createInvitation(authorId, inviteeId, sessionId) {
         const invitation = await prisma.invitation.create({
             data: {
-                userId: data.userId,
-                sessionId: data.sessionId,
+                authorId: authorId,
+                inviteeId: inviteeId,
+                sessionId: sessionId,
             },
         });
+
         await sendSessionInvitationEvent(invitation);
         return invitation;
     },
