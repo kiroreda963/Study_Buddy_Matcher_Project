@@ -1,0 +1,128 @@
+.session-details-container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: var(--bg-card, #ffffff);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  animation: slideUp 0.5s ease-out;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #333;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.session-details-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border-color, #eee);
+  padding-bottom: 1.5rem;
+}
+
+.session-details-header h1 {
+  font-size: 2rem;
+  margin: 0;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detail-section label {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.detail-section .value {
+  font-size: 1.125rem;
+  color: var(--text-primary, #1a1a1a);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.participants-list {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color, #eee);
+}
+
+.participants-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.participant-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary, #f9f9f9);
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.contact-info-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.contact-badge {
+  padding: 0.25rem 0.75rem;
+  background: var(--primary-light, #e3f2fd);
+  color: var(--primary-color, #2196f3);
+  border-radius: 20px;
+  font-size: 0.875rem;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary, #666);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 1rem;
+}
+
+.back-link:hover {
+  color: var(--primary-color, #2196f3);
+}
+
+.loading-name {
+  font-style: italic;
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.error-name {
+  color: #e53e3e;
+  font-size: 0.85rem;
+}

@@ -1,6 +1,8 @@
 import { Calendar, Clock, MapPin, Users, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const SessionCard = ({ session, isCreator, isUpcoming, onLeave, formatDate, formatTime }) => {
+  const navigate = useNavigate();
   return (
     <div className={`session-card ${session.isActive ? 'active' : ''}`}>
       {isCreator && (
@@ -30,7 +32,12 @@ const SessionCard = ({ session, isCreator, isUpcoming, onLeave, formatDate, form
       </div>
 
       <div className="card-actions">
-        <button className="view-details-btn">View Details</button>
+        <button 
+          className="view-details-btn"
+          onClick={() => navigate(`/session/${session.id}`)}
+        >
+          View Details
+        </button>
         {isUpcoming && isCreator && (
           <button className="secondary-btn">Edit</button>
         )}

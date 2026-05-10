@@ -120,10 +120,24 @@ export const UPDATE_PREFERENCES = gql`
 
 export const GET_OTHER_USER = gql`
   query GetOtherUser($userId: ID!) {
-    getUserProfile(userId: $userId) {
+    otherUser(userId: $userId) {
       id
       name
       university
+    }
+  }
+`;
+export const GET_STUDY_SESSION_BY_ID = gql`
+  query GetStudySession($id: ID!) {
+    studySession(id: $id) {
+      id
+      authorId
+      topic
+      date
+      duration
+      sessionType
+      contactInfo
+      participants
     }
   }
 `;
