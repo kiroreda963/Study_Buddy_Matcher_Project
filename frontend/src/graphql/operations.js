@@ -120,7 +120,7 @@ export const UPDATE_PREFERENCES = gql`
 
 export const GET_OTHER_USER = gql`
   query GetOtherUser($userId: ID!) {
-    otherUser(userId: $userId) {
+    getUserProfile(userId: $userId) {
       id
       name
       university
