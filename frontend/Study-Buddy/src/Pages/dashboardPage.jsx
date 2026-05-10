@@ -2,6 +2,10 @@ import { useState } from "react";
 import { book 
 , calendar, home, logout, network, profile, sessionCompleted, studySessions, upcomingCalender, userConnect, dashboard, bell
 } from "../assets/icons.jsx";
+import { useAuth } from "../context/AuthContext";
+import { gql } from "@apollo/client";
+import { authClient } from "../clients/apolloClients.jsx";
+
 // ── GraphQL helper ──────────────────────────────────────────────
 const SEARCH_QUERY = `
   query SearchStudyBuddies($query: String!) {
@@ -88,6 +92,7 @@ function SearchPage({ query, onBack }) {
   const [error, setError] = useState("");
   const [localQuery, setLocalQuery] = useState(query);
   const [inputVal, setInputVal] = useState(query);
+  
 
   const doSearch = async (q) => {
     if (!q.trim()) return;
@@ -201,11 +206,24 @@ function SearchPage({ query, onBack }) {
   );
 }
 
+const ME_QUERY = gql`
+  query Me {
+    me {
+      name
+    }
+  }
+`;
+
 // ── Main Dashboard ───────────────────────────────────────────────
 export default function Dashboard() {
   const [searchInput, setSearchInput] = useState("");
   const [searchPage, setSearchPage] = useState(null); // null = dashboard, string = search query
   const [recommended, setRecommended] = useState(RECOMMENDED);
+  const{ user } = useAuth();
+
+
+const { userData } = authClient.query({ query: ME_QUERY });
+
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -467,7 +485,7 @@ export default function Dashboard() {
               {/* Hero */}
               <div className="hero-card">
                 <div className="hero-text">
-                  <h2>Welcome back, Kirolos 👋</h2>
+                  <h2>Welcome back, {userData?.name } 👋</h2>
                   <p>Ready to find your next study buddy?</p>
                   <button className="hero-btn">Find Study Buddy</button>
                 </div>
