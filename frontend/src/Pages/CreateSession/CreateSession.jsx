@@ -1,9 +1,39 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
-import { ChevronDown } from 'lucide-react';
-import { sessionClient, profileClient, matchingClient } from '../../clients/apolloClients';
-import { GET_TOPICS, GET_CONNECTIONS, CREATE_STUDY_SESSION } from '../../graphql/operations';
+import { ChevronDown, User, Check } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { authClient, sessionClient, profileClient, matchingClient } from '../../clients/apolloClients';
+import { GET_TOPICS, GET_CONNECTIONS, CREATE_STUDY_SESSION, GET_OTHER_USER } from '../../graphql/operations';
 import './CreateSession.css';
+
+const BuddyCard = ({ buddyId, isSelected, onClick }) => {
+  const { data, loading } = useQuery(GET_OTHER_USER, {
+    client: authClient,
+    variables: { userId: buddyId },
+    skip: !buddyId
+  });
+
+  const buddyName = data?.otherUser?.name || `Buddy ${buddyId.substring(0, 5)}`;
+  const university = data?.otherUser?.university;
+
+  return (
+    <div
+      className={`buddy-card ${isSelected ? 'selected' : ''}`}
+      onClick={onClick}
+    >
+      <div className="buddy-status">
+        <Check size={14} />
+      </div>
+      <div className="buddy-avatar">
+        <User size={20} />
+      </div>
+      <div className="buddy-info">
+        <div className="buddy-name">{loading ? 'Loading...' : buddyName}</div>
+        {university && <div className="buddy-university">{university}</div>}
+      </div>
+    </div>
+  );
+};
 
 const CreateSession = () => {
   const [formData, setFormData] = useState({
@@ -42,14 +72,24 @@ const CreateSession = () => {
     }
   });
 
+  const { user } = useAuth();
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleParticipantChange = (e) => {
-    const value = Array.from(e.target.selectedOptions, option => option.value);
-    setFormData(prev => ({ ...prev, participants: value }));
+  const toggleParticipant = (buddyId) => {
+    setFormData(prev => {
+      const participants = [...prev.participants];
+      const index = participants.indexOf(buddyId);
+      if (index === -1) {
+        participants.push(buddyId);
+      } else {
+        participants.splice(index, 1);
+      }
+      return { ...prev, participants };
+    });
   };
 
   const handleSubmit = (e) => {
@@ -182,30 +222,28 @@ const CreateSession = () => {
 
           {/* Participants */}
           <div className="form-group">
-            <label>Participants:</label>
-            <div className="input-wrapper">
-              <select
-                multiple
-                name="participants"
-                className="form-select"
-                value={formData.participants}
-                onChange={handleParticipantChange}
-                style={{ height: 'auto', minHeight: '100px' }}
-              >
-                {matchingData?.getConnections.map(conn => {
-                  // Assuming userId2 is the buddy if the current user is userId1
-                  // For now just show the other ID
-                  const buddyId = conn.userId2;
-                  return (
-                    <option key={conn.id} value={buddyId}>
-                      Buddy {buddyId.substring(0, 8)}...
-                    </option>
-                  );
-                })}
-                {matchingLoading && <option>Loading buddies...</option>}
-              </select>
+            <label>Study Buddies:</label>
+            <div className="buddy-selection-grid">
+              {matchingData?.getConnections.map(conn => {
+                // Find the buddy ID (the one that isn't the current user)
+                const buddyId = conn.userId1 === user?.id ? conn.userId2 : conn.userId1;
+                const isSelected = formData.participants.includes(buddyId);
+                
+                return (
+                  <BuddyCard 
+                    key={conn.id}
+                    buddyId={buddyId}
+                    isSelected={isSelected}
+                    onClick={() => toggleParticipant(buddyId)}
+                  />
+                );
+              })}
+              {matchingLoading && <div className="loading-text">Loading buddies...</div>}
+              {matchingData?.getConnections.length === 0 && (
+                <div className="helper-text">No study buddies found. Find some buddies first!</div>
+              )}
             </div>
-            <div className="helper-text">Choose from your study buddies</div>
+            <div className="helper-text">Select one or more buddies to invite to this session</div>
           </div>
 
           <button
