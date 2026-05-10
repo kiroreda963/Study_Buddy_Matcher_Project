@@ -3,6 +3,30 @@ const { publishEvent } = require("../kafka/producer");
 
 const prisma = new PrismaClient();
 
+function profileEventPayload(userId, type, profile) {
+  return {
+    userId,
+    type,
+    courses: profile.courses.map((course) => ({ name: course.name })),
+    topics: profile.topics.map((topic) => ({ name: topic.name })),
+    preferences: profile.preferences
+      ? {
+          studyPace: profile.preferences.studyPace,
+          studyMode: profile.preferences.studyMode,
+          groupSize: profile.preferences.groupSize,
+          studyStyle: profile.preferences.studyStyle,
+        }
+      : null,
+  };
+}
+
+async function publishProfileUpdated(userId, type, profile) {
+  await publishEvent("UserPreferencesUpdated", {
+    eventName: "UserPreferencesUpdated",
+    payload: profileEventPayload(userId, type, profile),
+  });
+}
+
 const resolvers = {
   Query: {
     getProfile: async (_, __, context) => {
@@ -24,12 +48,16 @@ const resolvers = {
     createOrUpdateProfile: async (_, { university, academicYear }, context) => {
       if (!context.user) throw new Error("Unauthorized");
       const { userId } = context.user;
-      return prisma.userProfile.upsert({
+      const updated = await prisma.userProfile.upsert({
         where: { userId },
         update: { university, academicYear },
         create: { userId, university, academicYear },
         include: { courses: true, topics: true, preferences: true },
       });
+
+      await publishProfileUpdated(userId, "profile_updated", updated);
+
+      return updated;
     },
 
     addCourse: async (_, { courseName }, context) => {
@@ -52,23 +80,7 @@ const resolvers = {
         include: { courses: true, topics: true, preferences: true },
       });
 
-        await publishEvent("UserPreferencesUpdated", {
-        eventName: "UserPreferencesUpdated",
-        payload: {
-          userId,
-          type: "course_added",
-          courses: updated.courses.map(c => ({ name: c.name })),
-          topics: updated.topics.map(t => ({ name: t.name })),
-          preferences: updated.preferences
-            ? {
-                studyPace: updated.preferences.studyPace,
-                studyMode: updated.preferences.studyMode,
-                groupSize: updated.preferences.groupSize,
-                studyStyle: updated.preferences.studyStyle,
-              }
-            : null,
-        },
-      });
+      await publishProfileUpdated(userId, "course_added", updated);
 
       return updated;
     },
@@ -97,10 +109,7 @@ const resolvers = {
         include: { courses: true, topics: true, preferences: true },
       });
 
-      await publishEvent("UserPreferencesUpdated", {
-        eventName: "UserPreferencesUpdated",
-        payload: { userId, type: "course_removed", courseId },
-      });
+      await publishProfileUpdated(userId, "course_removed", updated);
 
       return updated;
     },
@@ -125,23 +134,7 @@ const resolvers = {
         include: { courses: true, topics: true, preferences: true },
       });
 
-    await publishEvent("UserPreferencesUpdated", {
-      eventName: "UserPreferencesUpdated",
-      payload: {
-        userId,
-        type: "topic_added",
-        courses: updated.courses.map(c => ({ name: c.name })),
-        topics: updated.topics.map(t => ({ name: t.name })),
-        preferences: updated.preferences
-          ? {
-              studyPace: updated.preferences.studyPace,
-              studyMode: updated.preferences.studyMode,
-              groupSize: updated.preferences.groupSize,
-              studyStyle: updated.preferences.studyStyle,
-            }
-          : null,
-      },
-    });
+      await publishProfileUpdated(userId, "topic_added", updated);
 
       return updated;
     },
@@ -170,10 +163,7 @@ const resolvers = {
       include: { courses: true, topics: true, preferences: true },
     });
 
-    await publishEvent("UserPreferencesUpdated", {
-      eventName: "UserPreferencesUpdated",
-      payload: { userId, type: "topic_removed", topicId },
-    });
+    await publishProfileUpdated(userId, "topic_removed", updated);
 
     return updated;
   },
@@ -200,23 +190,7 @@ const resolvers = {
         include: { courses: true, topics: true, preferences: true },
       });
 
-      await publishEvent("UserPreferencesUpdated", {
-      eventName: "UserPreferencesUpdated",
-      payload: {
-        userId,
-        type: "preferences_updated",
-        courses: updated.courses.map(c => ({ name: c.name })),
-        topics: updated.topics.map(t => ({ name: t.name })),
-        preferences: updated.preferences
-          ? {
-              studyPace: updated.preferences.studyPace,
-              studyMode: updated.preferences.studyMode,
-              groupSize: updated.preferences.groupSize,
-              studyStyle: updated.preferences.studyStyle,
-            }
-          : null,
-      },
-    });
+      await publishProfileUpdated(userId, "preferences_updated", updated);
 
       return updated;
     },
