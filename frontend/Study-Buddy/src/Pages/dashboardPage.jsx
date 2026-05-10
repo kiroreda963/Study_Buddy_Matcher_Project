@@ -1,13 +1,24 @@
-import { useState } from "react";
-import { book 
-, calendar, home, logout, network, profile, sessionCompleted, studySessions, upcomingCalender, userConnect, dashboard, bell
+import { useState, useEffect } from "react";
+import {
+  book,
+  calendar,
+  home,
+  logouticon,
+  network,
+  profile,
+  sessionCompleted,
+  studySessions,
+  upcomingCalender,
+  userConnect,
+  dashboard,
+  bell,
 } from "../assets/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { gql } from "@apollo/client";
-import { authClient } from "../clients/apolloClients.jsx";
+import { authClient, sessionClient } from "../clients/apolloClients.jsx";
 
 // ── GraphQL helper ──────────────────────────────────────────────
-const SEARCH_QUERY = `
+const SEARCH_QUERY = gql`
   query SearchStudyBuddies($query: String!) {
     searchStudyBuddies(query: $query) {
       id
@@ -16,6 +27,53 @@ const SEARCH_QUERY = `
       major
       matchScore
       avatarUrl
+    }
+  }
+`;
+
+const ME_QUERY = gql`
+  query Me {
+    me {
+      name
+    }
+  }
+`;
+
+const INVITATIONS_QUERY = gql`
+  query invitationsByUser {
+    invitationsByUser {
+      id
+      authorId
+      session {
+        id
+        date
+        sessionType
+        topic
+      }
+    }
+  }
+`;
+
+const GET_USER_PROFILE = gql`
+  query GetUserProfile($userId: ID!) {
+    getUserProfile(userId: $userId) {
+      name
+      university
+    }
+  }
+`;
+
+const JOIN_STUDY_SESSION = gql`
+  mutation JoinStudySession($sessionId: ID!) {
+    joinStudySession(sessionId: $sessionId) {
+      id
+    }
+  }
+`;
+const DELETE_INVITATION = gql`
+  mutation DeleteInvitation($deleteInvitationId: ID!) {
+    deleteInvitation(id: $deleteInvitationId) {
+      id
     }
   }
 `;
@@ -35,23 +93,99 @@ async function graphqlRequest(query, variables = {}) {
 const HERO_IMAGE_URL = "https://i.ibb.co/nMXjdQgV/Untitled.png";
 
 const STATS = [
-  { icon: book, value: 5,  label: "Courses\nCompleted" },
+  { icon: book, value: 5, label: "Courses\nCompleted" },
   { icon: sessionCompleted, value: 20, label: "Sessions\nCompleted" },
-  { icon: upcomingCalender, value: 3,  label: "Upcoming\nSessions" },
+  { icon: upcomingCalender, value: 3, label: "Upcoming\nSessions" },
 ];
 
 const SESSION_REQUESTS = [
-  { id: 1, name: "Ahmed Hassan", role: "Software", university: "Cairo University", level: "Junior", topic: "Operating Systems", tags: ["Online", "Discussion", "Help Needed" , "Question"], time: "5:00 PM", day: "OCT", date: 19, avatar: null },
-  { id: 2, name: "Ahmed Hassan", role: "Software", university: "Cairo University", level: "Junior", topic: "Operating Systems", tags: ["Online", "Discussion"], time: "5:00 PM", day: "Sep", date: 25, avatar: null},
-  { id: 3, name: "Ahmed Hassan", role: "Software", university: "Cairo University", level: "Junior", topic: "Operating Systems", tags: ["Online", "Discussion"], time: "5:00 PM", day: "Sep", date: 25, avatar: null },
-  { id: 4, name: "Ahmed Hassan", role: "Software", university: "Cairo University", level: "Junior", topic: "Operating Systems", tags: ["Online", "Discussion"], time: "5:00 PM", day: "Sep", date: 25, avatar: null },
+  {
+    id: 1,
+    name: "Ahmed Hassan",
+    role: "Software",
+    university: "Cairo University",
+    level: "Junior",
+    topic: "Operating Systems",
+    tags: ["Online", "Discussion", "Help Needed", "Question"],
+    time: "5:00 PM",
+    day: "OCT",
+    date: 19,
+    avatar: null,
+  },
+  {
+    id: 2,
+    name: "Ahmed Hassan",
+    role: "Software",
+    university: "Cairo University",
+    level: "Junior",
+    topic: "Operating Systems",
+    tags: ["Online", "Discussion"],
+    time: "5:00 PM",
+    day: "Sep",
+    date: 25,
+    avatar: null,
+  },
+  {
+    id: 3,
+    name: "Ahmed Hassan",
+    role: "Software",
+    university: "Cairo University",
+    level: "Junior",
+    topic: "Operating Systems",
+    tags: ["Online", "Discussion"],
+    time: "5:00 PM",
+    day: "Sep",
+    date: 25,
+    avatar: null,
+  },
+  {
+    id: 4,
+    name: "Ahmed Hassan",
+    role: "Software",
+    university: "Cairo University",
+    level: "Junior",
+    topic: "Operating Systems",
+    tags: ["Online", "Discussion"],
+    time: "5:00 PM",
+    day: "Sep",
+    date: 25,
+    avatar: null,
+  },
 ];
 
 const RECOMMENDED = [
-  { id: 1, name: "Ahmed Hassan", university: "Cairo University", major: "Business", score: 82, connected: false },
-  { id: 2, name: "Ahmed Hassan", university: "Cairo University", major: "Business", score: 92, connected: false },
-  { id: 3, name: "Ahmed Hassan", university: "Cairo University", major: "Business", score: 92, connected: false },
-  { id: 4, name: "Ahmed Hassan", university: "Cairo University", major: "Business", score: 92, connected: false },
+  {
+    id: 1,
+    name: "Ahmed Hassan",
+    university: "Cairo University",
+    major: "Business",
+    score: 82,
+    connected: false,
+  },
+  {
+    id: 2,
+    name: "Ahmed Hassan",
+    university: "Cairo University",
+    major: "Business",
+    score: 92,
+    connected: false,
+  },
+  {
+    id: 3,
+    name: "Ahmed Hassan",
+    university: "Cairo University",
+    major: "Business",
+    score: 92,
+    connected: false,
+  },
+  {
+    id: 4,
+    name: "Ahmed Hassan",
+    university: "Cairo University",
+    major: "Business",
+    score: 92,
+    connected: false,
+  },
 ];
 
 const NAV_TOP = [
@@ -64,24 +198,35 @@ const NAV_TOP = [
 
 const NAV_BOTTOM = [
   { icon: home, label: "Home" },
-  { icon: logout, label: "Logout" },
+  { icon: logouticon, label: "Logout" },
 ];
 
 // ── Tag color map ────────────────────────────────────────────────
 const tagColor = (tag) => {
-  if (tag === "Online") return { bg: "#d1fae5", color: "#059669" };
+  if (tag === "ONLINE") return { bg: "#d1fae5", color: "#059669" };
   return { bg: "#fce7f3", color: "#be185d" };
 };
 
 // ── Avatar placeholder ───────────────────────────────────────────
 function Avatar({ size = 36 }) {
   return (
-    <div style={{
-      width: size, height: size, borderRadius: "50%",
-      background: "linear-gradient(135deg,#4ADE80,#22c55e)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      color: "white", fontSize: size * 0.4, fontWeight: 700, flexShrink: 0,
-    }}>A</div>
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "linear-gradient(135deg,#4ADE80,#22c55e)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "white",
+        fontSize: size * 0.4,
+        fontWeight: 700,
+        flexShrink: 0,
+      }}
+    >
+      A
+    </div>
   );
 }
 
@@ -92,7 +237,6 @@ function SearchPage({ query, onBack }) {
   const [error, setError] = useState("");
   const [localQuery, setLocalQuery] = useState(query);
   const [inputVal, setInputVal] = useState(query);
-  
 
   const doSearch = async (q) => {
     if (!q.trim()) return;
@@ -104,9 +248,30 @@ function SearchPage({ query, onBack }) {
       // setResults(data.searchStudyBuddies);
       await new Promise((r) => setTimeout(r, 700));
       setResults([
-        { id: 1, name: "Sara Ahmed", university: "Cairo University", major: "CS", matchScore: 95, avatarUrl: null },
-        { id: 2, name: "Omar Khalil", university: "AUC", major: "Engineering", matchScore: 88, avatarUrl: null },
-        { id: 3, name: "Nour Mostafa", university: "GUC", major: "Business", matchScore: 76, avatarUrl: null },
+        {
+          id: 1,
+          name: "Sara Ahmed",
+          university: "Cairo University",
+          major: "CS",
+          matchScore: 95,
+          avatarUrl: null,
+        },
+        {
+          id: 2,
+          name: "Omar Khalil",
+          university: "AUC",
+          major: "Engineering",
+          matchScore: 88,
+          avatarUrl: null,
+        },
+        {
+          id: 3,
+          name: "Nour Mostafa",
+          university: "GUC",
+          major: "Business",
+          matchScore: 76,
+          avatarUrl: null,
+        },
       ]);
     } catch (e) {
       setError(e.message || "Search failed.");
@@ -115,7 +280,9 @@ function SearchPage({ query, onBack }) {
     }
   };
 
-  useState(() => { doSearch(query); }, []);
+  useState(() => {
+    doSearch(query);
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -125,79 +292,174 @@ function SearchPage({ query, onBack }) {
 
   return (
     <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
-      <button onClick={onBack} style={{
-        background: "none", border: "none", cursor: "pointer",
-        color: "#4ADE80", fontFamily: "inherit", fontSize: 14,
-        fontWeight: 600, display: "flex", alignItems: "center", gap: 6, marginBottom: 20,
-      }}>← Back to Dashboard</button>
+      <button
+        onClick={onBack}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "#4ADE80",
+          fontFamily: "inherit",
+          fontSize: 14,
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginBottom: 20,
+        }}
+      >
+        ← Back to Dashboard
+      </button>
 
-      <h2 style={{ fontSize: 22, fontWeight: 700, color: "#111", marginBottom: 20 }}>
+      <h2
+        style={{
+          fontSize: 22,
+          fontWeight: 700,
+          color: "#111",
+          marginBottom: 20,
+        }}
+      >
         Search Study Buddies
       </h2>
 
-      <form onSubmit={handleSearch} style={{ display: "flex", gap: 10, marginBottom: 32 }}>
+      <form
+        onSubmit={handleSearch}
+        style={{ display: "flex", gap: 10, marginBottom: 32 }}
+      >
         <div style={{ position: "relative", flex: 1 }}>
-          <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 16 }}>🔍</span>
+          <span
+            style={{
+              position: "absolute",
+              left: 14,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#94a3b8",
+              fontSize: 16,
+            }}
+          >
+            🔍
+          </span>
           <input
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
             placeholder="Search for study buddies..."
             style={{
-              width: "100%", padding: "12px 16px 12px 40px",
-              border: "1.5px solid #e2e8f0", borderRadius: 10,
-              fontSize: 14, fontFamily: "inherit", outline: "none",
+              width: "100%",
+              padding: "12px 16px 12px 40px",
+              border: "1.5px solid #e2e8f0",
+              borderRadius: 10,
+              fontSize: 14,
+              fontFamily: "inherit",
+              outline: "none",
               background: "#f8fafc",
             }}
             autoFocus
           />
         </div>
-        <button type="submit" style={{
-          padding: "12px 24px", background: "#4ADE80", color: "white",
-          border: "none", borderRadius: 10, cursor: "pointer",
-          fontFamily: "inherit", fontWeight: 600, fontSize: 14,
-        }}>Search</button>
+        <button
+          type="submit"
+          style={{
+            padding: "12px 24px",
+            background: "#4ADE80",
+            color: "white",
+            border: "none",
+            borderRadius: 10,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontWeight: 600,
+            fontSize: 14,
+          }}
+        >
+          Search
+        </button>
       </form>
 
       {loading && (
         <div style={{ textAlign: "center", color: "#94a3b8", padding: 40 }}>
-          <div style={{
-            width: 36, height: 36, border: "3px solid #e2e8f0",
-            borderTop: "3px solid #4ADE80", borderRadius: "50%",
-            animation: "spin 0.7s linear infinite", margin: "0 auto 12px",
-          }} />
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              border: "3px solid #e2e8f0",
+              borderTop: "3px solid #4ADE80",
+              borderRadius: "50%",
+              animation: "spin 0.7s linear infinite",
+              margin: "0 auto 12px",
+            }}
+          />
           Searching...
         </div>
       )}
 
       {error && (
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: 10, marginBottom: 20 }}>
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#dc2626",
+            padding: "12px 16px",
+            borderRadius: 10,
+            marginBottom: 20,
+          }}
+        >
           {error}
         </div>
       )}
 
       {results && !loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>{results.length} results for "<strong>{localQuery}</strong>"</p>
+          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>
+            {results.length} results for "<strong>{localQuery}</strong>"
+          </p>
           {results.map((r) => (
-            <div key={r.id} style={{
-              background: "white", border: "1.5px solid #e2e8f0",
-              borderRadius: 12, padding: "16px 20px",
-              display: "flex", alignItems: "center", gap: 16,
-            }}>
+            <div
+              key={r.id}
+              style={{
+                background: "white",
+                border: "1.5px solid #e2e8f0",
+                borderRadius: 12,
+                padding: "16px 20px",
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+              }}
+            >
               <Avatar size={48} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>{r.name}</div>
-                <div style={{ fontSize: 13, color: "#64748b" }}>{r.university} · {r.major}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>
+                  {r.name}
+                </div>
+                <div style={{ fontSize: 13, color: "#64748b" }}>
+                  {r.university} · {r.major}
+                </div>
               </div>
-              <div style={{
-                background: "#d1fae5", color: "#059669",
-                borderRadius: 20, padding: "4px 12px", fontSize: 12, fontWeight: 700,
-              }}>{r.matchScore}% match</div>
-              <button style={{
-                background: "#4ADE80", color: "white", border: "none",
-                borderRadius: 8, padding: "8px 18px", cursor: "pointer",
-                fontFamily: "inherit", fontWeight: 600, fontSize: 13,
-              }}>Connect</button>
+              <div
+                style={{
+                  background: "#d1fae5",
+                  color: "#059669",
+                  borderRadius: 20,
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {r.matchScore}% match
+              </div>
+              <button
+                style={{
+                  background: "#4ADE80",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 18px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                Connect
+              </button>
             </div>
           ))}
         </div>
@@ -206,24 +468,103 @@ function SearchPage({ query, onBack }) {
   );
 }
 
-const ME_QUERY = gql`
-  query Me {
-    me {
-      name
-    }
-  }
-`;
-
 // ── Main Dashboard ───────────────────────────────────────────────
 export default function Dashboard() {
   const [searchInput, setSearchInput] = useState("");
   const [searchPage, setSearchPage] = useState(null); // null = dashboard, string = search query
+  const [sessionRequests, setSessionRequests] = useState([]);
   const [recommended, setRecommended] = useState(RECOMMENDED);
-  const{ user } = useAuth();
+  const [userData, setUserData] = useState(null);
+  const { user, logout } = useAuth();
 
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = "/login";
+  };
 
-const { userData } = authClient.query({ query: ME_QUERY });
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await authClient.query({
+          query: ME_QUERY,
+        });
 
+        setUserData(response.data);
+        console.log("User data fetched:", response.data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    const fetchSessionRequests = async () => {
+      try {
+        // 1. Fetch invitations
+        const invitationsRes = await sessionClient.query({
+          query: INVITATIONS_QUERY,
+        });
+
+        const invitations = invitationsRes?.data.invitationsByUser ?? [];
+        console.log("Invitations fetched:", invitations);
+        console.log(
+          new Date(Number(invitations[0].session.date)).toLocaleTimeString(),
+        );
+
+        // 2. For each invitation, fetch the author's profile and combine data
+        const combined = await Promise.all(
+          invitations.map(async (invite, index) => {
+            const profileRes = await authClient.query({
+              query: GET_USER_PROFILE,
+              variables: {
+                userId: invite.authorId,
+              },
+            });
+
+            const profile = profileRes.data.getUserProfile;
+
+            return {
+              id: invite.id,
+              name: profile.name,
+              university: profile.university,
+              topic: invite.session.topic,
+              tags: invite.session.sessionType,
+              day: new Date(Number(invite.session.date)).toLocaleString(
+                "default",
+                { month: "short" },
+              ),
+              avatars: profile.avatarUrl || null,
+
+              time: new Date(Number(invite.session.date)).toLocaleTimeString(),
+              date: new Date(Number(invite.session.date)).getDate(),
+              sessionType: invite.session.sessionType,
+              sessionId: invite.session.id,
+            };
+          }),
+        );
+
+        setSessionRequests(combined);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    // console.log(sessionRequests);
+
+    fetchUser();
+    fetchSessionRequests();
+  }, []);
+
+  const acceptSessionRequest = (inviteId, sessionId) => {
+    sessionClient.mutate({
+      mutation: JOIN_STUDY_SESSION,
+      variables: { sessionId: sessionId },
+    })
+    window.location.reload();
+    ;
+
+    sessionClient.mutate({
+      mutation: DELETE_INVITATION,
+      variables: { deleteInvitationId: inviteId },
+    });
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -232,7 +573,7 @@ const { userData } = authClient.query({ query: ME_QUERY });
 
   const toggleConnect = (id) => {
     setRecommended((prev) =>
-      prev.map((r) => r.id === id ? { ...r, connected: !r.connected } : r)
+      prev.map((r) => (r.id === id ? { ...r, connected: !r.connected } : r)),
     );
   };
 
@@ -435,10 +776,17 @@ const { userData } = authClient.query({ query: ME_QUERY });
       <div className="dash-layout">
         {/* ── Sidebar ── */}
         <aside className="sidebar">
-          <div className="sidebar-brand">Learn<br />Together</div>
+          <div className="sidebar-brand">
+            Learn
+            <br />
+            Together
+          </div>
           <nav className="nav-group">
             {NAV_TOP.map((item) => (
-              <div key={item.label} className={`nav-item${item.active ? " active" : ""}`}>
+              <div
+                key={item.label}
+                className={`nav-item${item.active ? " active" : ""}`}
+              >
                 <img src={item.icon} alt={item.label} className="nav-icon" />
                 {item.label}
               </div>
@@ -446,7 +794,15 @@ const { userData } = authClient.query({ query: ME_QUERY });
           </nav>
           <nav className="nav-bottom">
             {NAV_BOTTOM.map((item) => (
-              <div key={item.label} className="nav-item">
+              <div
+                key={item.label}
+                className="nav-item"
+                onClick={() => {
+                  if (item.label === "Logout") {
+                    handleLogout();
+                  }
+                }}
+              >
                 <img src={item.icon} alt={item.label} className="nav-icon" />
                 {item.label}
               </div>
@@ -470,33 +826,42 @@ const { userData } = authClient.query({ query: ME_QUERY });
             </form>
             <div className="topbar-actions">
               <button className="notif-btn">
-                <img src={bell} alt="Notifications" width={20}  />
+                <img src={bell} alt="Notifications" width={20} />
                 <span className="notif-badge">8</span>
               </button>
-              
             </div>
           </div>
 
           {/* Page content */}
           {searchPage ? (
-            <SearchPage query={searchPage} onBack={() => { setSearchPage(null); setSearchInput(""); }} />
+            <SearchPage
+              query={searchPage}
+              onBack={() => {
+                setSearchPage(null);
+                setSearchInput("");
+              }}
+            />
           ) : (
             <div className="main-scroll">
               {/* Hero */}
               <div className="hero-card">
                 <div className="hero-text">
-                  <h2>Welcome back, {userData?.name } 👋</h2>
+                  <h2>Welcome back, {userData?.me.name} 👋</h2>
                   <p>Ready to find your next study buddy?</p>
                   <button className="hero-btn">Find Study Buddy</button>
                 </div>
-                <img src={HERO_IMAGE_URL} alt="Students studying" className="hero-img" />
+                <img
+                  src={HERO_IMAGE_URL}
+                  alt="Students studying"
+                  className="hero-img"
+                />
               </div>
 
               {/* Stats */}
               <div className="stats-row">
                 {STATS.map((s) => (
                   <div key={s.label} className="stat-card">
-                   <img src={s.icon} alt={s.label} className="stat-icon" />
+                    <img src={s.icon} alt={s.label} className="stat-icon" />
                     <div>
                       <div className="stat-val">{s.value}</div>
                       <div className="stat-label">{s.label}</div>
@@ -509,14 +874,16 @@ const { userData } = authClient.query({ query: ME_QUERY });
               <div className="section-card">
                 <div className="section-title">Sessions Requests</div>
                 <div className="sessions-row">
-                  {SESSION_REQUESTS.map((s) => (
-                    <div key={s.id} className={`session-card${s.active ? " active-card" : ""}`}>
+                  {sessionRequests.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`session-card${s.active ? " active-card" : ""}`}
+                    >
                       <div className="session-top">
                         <Avatar size={32} />
                         <div className="session-info">
                           <div className="session-name">{s.name}</div>
-                          <div className="session-role">{s.role}</div>
-                          <div className="session-uni">{s.university} · {s.level}</div>
+                          <div className="session-uni">{s.university} </div>
                         </div>
                         <div className="date-badge">
                           <div className="date-month">{s.day}</div>
@@ -525,14 +892,21 @@ const { userData } = authClient.query({ query: ME_QUERY });
                       </div>
                       <div className="session-topic">Topic: {s.topic}</div>
                       <div className="tags-row">
-                        {s.tags.map((t) => (
-                          <span key={t} className="tag" style={tagColor(t)}>{t}</span>
-                        ))}
+                        <span className="tag" style={tagColor(s.tags)}>
+                          {s.tags}
+                        </span>
                       </div>
                       <div className="session-time">Time: {s.time}</div>
                       <div className="session-actions">
                         <button className="btn-profile">View Profile</button>
-                        <button className="btn-accept">Accept</button>
+                        <button
+                          className="btn-accept"
+                          onClick={() =>
+                            acceptSessionRequest(s.id, s.sessionId)
+                          }
+                        >
+                          Accept
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -542,7 +916,9 @@ const { userData } = authClient.query({ query: ME_QUERY });
               {/* Recommended */}
               <div className="section-card">
                 <div className="rec-header">
-                  <div className="section-title" style={{ margin: 0 }}>Recommended Study Buddies For You</div>
+                  <div className="section-title" style={{ margin: 0 }}>
+                    Recommended Study Buddies For You
+                  </div>
                   <button className="show-all">Show all</button>
                 </div>
                 <div className="rec-row">
@@ -552,12 +928,20 @@ const { userData } = authClient.query({ query: ME_QUERY });
                       <button className="rec-close">✕</button>
                       <div className="rec-avatar">👤</div>
                       <div className="rec-name">{r.name}</div>
-                      <div className="rec-uni">{r.university}<br />{r.major}</div>
+                      <div className="rec-uni">
+                        {r.university}
+                        <br />
+                        {r.major}
+                      </div>
                       <button
                         className={`btn-connect${r.connected ? " connected" : ""}`}
                         onClick={() => toggleConnect(r.id)}
                       >
-                        <img src={userConnect} alt="Connect" className="btn-icon" />
+                        <img
+                          src={userConnect}
+                          alt="Connect"
+                          className="btn-icon"
+                        />
                         {r.connected ? "Connected" : "Connect"}
                       </button>
                     </div>
