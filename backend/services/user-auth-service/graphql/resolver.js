@@ -14,6 +14,12 @@ const resolvers = {
       }
       return await getUserProfile(context.user.userId);
     },
+    getUserProfile: async (_, { userId }, context) => {
+      if (!context.user) {
+        throw new Error("Unauthorized");
+      }
+      return await getUserProfile(userId);
+    },
   },
   Mutation: {
     register: async (_, args) => {
@@ -41,6 +47,7 @@ const resolvers = {
       }
       return await updateUserProfile(context.user.userId, args.email);
     },
+   
   },
 };
 
