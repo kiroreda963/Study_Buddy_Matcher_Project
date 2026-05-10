@@ -18,7 +18,6 @@ import './UserProfile.css';
 import { useAuth } from '../../context/AuthContext';
 
 const UserProfile = ({ onBack }) => {
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingPreferences, setIsEditingPreferences] = useState(false);
   const [pastIndex, setPastIndex] = useState(0);
 
@@ -38,9 +37,7 @@ const UserProfile = ({ onBack }) => {
   // State for forms
   const [profileForm, setProfileForm] = useState({
     name: '',
-    surname: '',
-    email: '',
-    profilePic: ''
+    email: ''
   });
 
   const [prefForm, setPrefForm] = useState({
@@ -54,14 +51,9 @@ const UserProfile = ({ onBack }) => {
   useEffect(() => {
     const targetUser = userData?.me || user;
     if (targetUser) {
-      const fullNames = (targetUser.name || "").trim().split(/\s+/);
-      const firstName = fullNames[0] || "";
-      const surname = fullNames.slice(1).join(" ");
-
       setProfileForm(prev => ({
         ...prev,
-        name: firstName || prev.name,
-        surname: surname,
+        name: targetUser.name || prev.name,
         email: targetUser.email || prev.email
       }));
     }
@@ -108,8 +100,6 @@ const UserProfile = ({ onBack }) => {
 
   const handleProfileSubmit = (e) => {
     e.preventDefault();
-    setIsEditingProfile(false);
-    // Mutation to update user info would go here
   };
 
   const handlePrefSubmit = (e) => {
@@ -174,17 +164,8 @@ const UserProfile = ({ onBack }) => {
                 <input
                   type="text"
                   value={profileForm.name}
-                  disabled={!isEditingProfile}
+                  disabled={true}
                   onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                />
-              </div>
-              <div className="form-field">
-                <label>Surname</label>
-                <input
-                  type="text"
-                  value={profileForm.surname}
-                  disabled={!isEditingProfile}
-                  onChange={(e) => setProfileForm({ ...profileForm, surname: e.target.value })}
                 />
               </div>
               <div className="form-field">
@@ -192,30 +173,13 @@ const UserProfile = ({ onBack }) => {
                 <input
                   type="email"
                   value={profileForm.email}
-                  disabled={!isEditingProfile}
+                  disabled={true}
                   onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                />
-              </div>
-              <div className="form-field">
-                <label>Profile Picture URL</label>
-                <input
-                  type="text"
-                  value={profileForm.profilePic}
-                  disabled={!isEditingProfile}
-                  onChange={(e) => setProfileForm({ ...profileForm, profilePic: e.target.value })}
                 />
               </div>
             </div>
 
             <div className="profile-actions">
-              <button type="button" className="change-password-btn">Change Password</button>
-              <button
-                type="button"
-                className="edit-btn"
-                onClick={() => isEditingProfile ? handleProfileSubmit({ preventDefault: () => { } }) : setIsEditingProfile(true)}
-              >
-                {isEditingProfile ? 'Save' : 'Edit'}
-              </button>
             </div>
           </form>
         </div>
