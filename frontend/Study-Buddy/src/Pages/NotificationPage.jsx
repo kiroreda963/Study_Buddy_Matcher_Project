@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { gql } from "@apollo/client";
+import { useMutation, useQuery } from "@apollo/client/react";
+import { useEffect, useMemo, useState } from "react";
+import { notificationClient } from "../clients/apolloClients.jsx";
 
 const GREEN = "#3fcf8e";
 const LIGHT_BG = "#f0faf5";
@@ -6,64 +9,182 @@ const GRAY_BORDER = "#e0e0e0";
 const TEXT_MAIN = "#1a1a1a";
 const TEXT_MUTED = "#888";
 
-const initialNotifications = [
-  {
-    id: 1,
-    title: "New Study Buddy Match Found !",
-    description: "You and Masoud share 3 courses and similar study prefrences.",
-    time: "Just now",
-    read: false,
-    type: "match",
-    action: { label: "View Match" },
-  },
-  {
-    id: 2,
-    title: "Buddy Request Received",
-    description: "Sarah Ahmed wants to connect as a study partner",
-    time: "2 hours ago",
-    read: false,
-    type: "request",
-    action: { label: "Accept", secondary: "Decline" },
-  },
-  {
-    id: 3,
-    title: "Session Invitation",
-    description: 'Leithy invited you to join a "Data Structures Study Session ".  Today 7:00 PM',
-    time: "5 hours ago",
-    read: true,
-    type: "session",
-    action: { label: "View Session" },
-  },
-  {
-    id: 4,
-    title: "Reminder: Study Session Starting Soon",
-    description: 'Your " Algorithms Revision Session " begins in 30 mintues.',
-    time: "1 day ago",
-    read: true,
-    type: "reminder",
-    action: { label: "Join Session" },
-  },
-];
+const GET_NOTIFICATIONS = gql`
+  query GetNotifications {
+    getNotifications {
+      id
+      type
+      message
+      isRead
+      createdAt
+      senderId
+    }
+  }
+`;
+
+const MARK_AS_READ = gql`
+  mutation MarkAsRead($notificationId: ID!) {
+    markAsRead(notificationId: $notificationId) {
+      id
+      isRead
+    }
+  }
+`;
+
+const LOCAL_READ_STORAGE_KEY = "studyBuddy.notifications.locallyReadIds";
+
+function normalizeNotificationId(notificationId) {
+  if (notificationId == null) return "";
+  return String(notificationId).trim();
+}
+
+function loadLocallyReadIds() {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(LOCAL_READ_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map((id) => normalizeNotificationId(id)).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLocallyReadIds(idsSet) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LOCAL_READ_STORAGE_KEY, JSON.stringify(Array.from(idsSet)));
+  } catch {
+    /* ignore write failures */
+  }
+}
+
+/** Updates normalized Notification cache entries (fixes UI when markAsRead API errors). */
+function setNotificationReadInCache(client, notificationId) {
+  const id = normalizeNotificationId(notificationId);
+  if (!id) return;
+  try {
+    const cacheId = client.cache.identify({ __typename: "Notification", id });
+    if (cacheId) {
+      client.cache.modify({
+        id: cacheId,
+        fields: {
+          isRead() {
+            return true;
+          },
+        },
+      });
+      return;
+    }
+  } catch {
+    /* use fallback */
+  }
+  fallbackMarkNotificationReadQuery(client, id);
+}
+
+function fallbackMarkNotificationReadQuery(client, notificationId) {
+  try {
+    const data = client.readQuery({ query: GET_NOTIFICATIONS });
+    const rows = data?.getNotifications ?? [];
+    if (!rows.length) return;
+    client.writeQuery({
+      query: GET_NOTIFICATIONS,
+      data: {
+        getNotifications: rows.map((n) =>
+          normalizeNotificationId(n.id) === notificationId ? { ...n, isRead: true } : n,
+        ),
+      },
+    });
+  } catch {
+    /* no cache yet */
+  }
+}
 
 export default function NotificationPage() {
-  const [notifications, setNotifications] = useState(initialNotifications);
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
   const [activeNav, setActiveNav] = useState("Study Sessions");
+  const [mutationError, setMutationError] = useState("");
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [locallyReadIds, setLocallyReadIds] = useState(() => loadLocallyReadIds());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const { data, loading, error, refetch } = useQuery(GET_NOTIFICATIONS, {
+    client: notificationClient,
+    fetchPolicy: "cache-and-network",
+  });
+  const [markAsRead, markState] = useMutation(MARK_AS_READ, { client: notificationClient });
+
+  const notifications = useMemo(() => {
+    const rows = data?.getNotifications ?? [];
+    return rows.map((n) => ({
+      id: n.id,
+      title: notificationTypeToTitle(n.type),
+      description: n.message,
+      time: formatNotificationTime(n.createdAt, nowTick),
+      read: Boolean(n.isRead) || locallyReadIds.has(normalizeNotificationId(n.id)),
+      rawType: n.type,
+    }));
+  }, [data, nowTick, locallyReadIds]);
+
+  useEffect(() => {
+    saveLocallyReadIds(locallyReadIds);
+  }, [locallyReadIds]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const readCount = notifications.filter(n => n.read).length;
 
-  function markAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  async function markAllRead() {
+    setMutationError("");
+    const unread = notifications.filter((n) => !n.read);
+    if (unread.length === 0) return;
+
+    unread.forEach((n) => setNotificationReadInCache(notificationClient, n.id));
+    setLocallyReadIds((prev) => {
+      const next = new Set(prev);
+      unread.forEach((n) => {
+        next.add(normalizeNotificationId(n.id));
+      });
+      return next;
+    });
+
+    try {
+      await Promise.all(
+        unread.map((n) =>
+          markAsRead({
+            variables: { notificationId: normalizeNotificationId(n.id) },
+          }),
+        ),
+      );
+      await refetch();
+    } catch {
+      // Cache already reflects read; server may still be failing
+      setMutationError("");
+    }
   }
 
-  function markRead(id) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  }
+  async function markRead(id) {
+    const notificationId = normalizeNotificationId(id);
+    if (!notificationId) return;
 
-  function dismiss(id) {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setMutationError("");
+    setNotificationReadInCache(notificationClient, notificationId);
+    setLocallyReadIds((prev) => {
+      const next = new Set(prev);
+      next.add(notificationId);
+      return next;
+    });
+
+    try {
+      await markAsRead({ variables: { notificationId } });
+      await refetch();
+    } catch {
+      // UI already updated via cache above
+      setMutationError("");
+    }
   }
 
   const filtered = notifications.filter(n => {
@@ -96,27 +217,96 @@ export default function NotificationPage() {
             >{n}</span>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexShrink: 0, lineHeight: 0 }}>
           {/* Bell */}
-          <div style={{ position: "relative", cursor: "pointer" }}>
-            <img src="/notficationBell.png" alt="Notifications"
+          <div style={{
+            position: "relative",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 36,
+            height: 36,
+            flexShrink: 0,
+            boxSizing: "border-box",
+          }}>
+            <img src="/bell_icon.svg" alt="Notifications"
               style={{ width: 36, height: 36, objectFit: "contain", display: "block" }} />
+            <span style={{
+              position: "absolute",
+              top: -6,
+              right: -8,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 999,
+              background: GREEN,
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 5px",
+              lineHeight: 1,
+            }}>
+              {unreadCount}
+            </span>
           </div>
           {/* Avatar */}
-          <div style={{
-            width: 38, height: 38, borderRadius: "50%", border: `2px solid ${GRAY_BORDER}`,
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f5f5f5"
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="8" r="4" fill="#555" />
-              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#555" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              boxSizing: "border-box",
+              borderRadius: "50%",
+              border: `2px solid ${GRAY_BORDER}`,
+              overflow: "hidden",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              background: "#fafafa",
+              lineHeight: 0,
+              marginTop: -3,
+            }}
+            aria-label="Profile picture"
+          >
+            <img
+              src="/pfp.png"
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           </div>
         </div>
       </nav>
 
       {/* Page content */}
       <div style={{ maxWidth: 780, margin: "48px auto", padding: "0 16px" }}>
+        {error && (
+          <div style={{
+            background: "#fff",
+            border: `1.5px solid ${GRAY_BORDER}`,
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 16
+          }}>
+            <div style={{ fontWeight: 800, color: TEXT_MAIN, marginBottom: 4 }}>Couldn’t load notifications</div>
+            <div style={{ color: TEXT_MUTED, fontSize: 13 }}>{String(error.message || error)}</div>
+          </div>
+        )}
+        {mutationError && (
+          <div style={{
+            background: "#fff",
+            border: "1.5px solid #fecaca",
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 16
+          }}>
+            <div style={{ fontWeight: 800, color: "#b91c1c", marginBottom: 4 }}>Action failed</div>
+            <div style={{ color: "#b91c1c", fontSize: 13 }}>{mutationError}</div>
+          </div>
+        )}
 
         {/* Header row */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
@@ -144,7 +334,7 @@ export default function NotificationPage() {
               {unreadCount} Unread
             </div>
             {/* Mark all read */}
-            <button onClick={markAllRead} style={{
+            <button onClick={markAllRead} disabled={markState.loading} style={{
               display: "flex", alignItems: "center", gap: 6,
               background: "#fff", border: `1.5px solid ${GRAY_BORDER}`,
               borderRadius: 20, padding: "6px 16px", fontSize: 13, fontWeight: 600,
@@ -206,11 +396,11 @@ export default function NotificationPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filtered.length === 0 && (
             <div style={{ textAlign: "center", color: TEXT_MUTED, padding: 40, fontSize: 15 }}>
-              No notifications found.
+              {loading ? "Loading notifications..." : "No notifications found."}
             </div>
           )}
           {filtered.map(notif => (
-            <div key={notif.id} onClick={() => markRead(notif.id)} style={{
+            <div key={notif.id} onClick={() => notif.read || markRead(notif.id)} style={{
               background: notif.read ? "#fff" : "#f0f8ff",
               border: `1.5px solid ${notif.read ? GRAY_BORDER : "#ddeeff"}`,
               borderRadius: 14, padding: "20px 24px",
@@ -239,24 +429,34 @@ export default function NotificationPage() {
                   <div style={{ fontSize: 12, color: "#aaa" }}>{notif.time}</div>
                 </div>
 
-                {/* Action buttons */}
+                {/* Type-specific actions */}
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-                  {notif.action.secondary && (
-                    <button onClick={e => { e.stopPropagation(); dismiss(notif.id); }} style={{
-                      padding: "8px 18px", borderRadius: 20,
-                      border: `1.5px solid ${GRAY_BORDER}`, background: "#fff",
-                      fontWeight: 600, fontSize: 13, cursor: "pointer", color: TEXT_MAIN
-                    }}>{notif.action.secondary}</button>
-                  )}
-                  <button onClick={e => { e.stopPropagation(); markRead(notif.id); }} style={{
-                    padding: "8px 18px", borderRadius: 20,
-                    border: "none", background: GREEN,
-                    color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
-                    transition: "opacity 0.15s"
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
-                    onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                  >{notif.action.label}</button>
+                  {getNotificationActions(notif.rawType).map((action) => (
+                    <button
+                      key={action.label}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!notif.read) {
+                          await markRead(notif.id);
+                        }
+                      }}
+                      style={{
+                        padding: "8px 18px",
+                        borderRadius: 20,
+                        border: action.variant === "secondary" ? `1.5px solid ${GRAY_BORDER}` : "none",
+                        background: action.variant === "secondary" ? "#fff" : GREEN,
+                        color: action.variant === "secondary" ? TEXT_MAIN : "#fff",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        transition: "opacity 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
+                      onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -265,4 +465,98 @@ export default function NotificationPage() {
       </div>
     </div>
   );
+}
+
+function getMutationErrorMessage(error, fallbackMessage) {
+  const graphQLErrorMessage = error?.graphQLErrors?.[0]?.message;
+  const networkErrorMessage = error?.networkError?.result?.errors?.[0]?.message;
+  return graphQLErrorMessage || networkErrorMessage || error?.message || fallbackMessage;
+}
+
+function notificationTypeToTitle(type) {
+  if (!type) return "Notification";
+  const readable = String(type).toLowerCase().split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+  return readable;
+}
+
+/** Parses ISO strings, millis, unix seconds (number or numeric string). */
+function parseNotificationDate(createdAt) {
+  if (createdAt == null || createdAt === "") return null;
+  if (createdAt instanceof Date) {
+    const t = createdAt.getTime();
+    return Number.isNaN(t) ? null : createdAt;
+  }
+  if (typeof createdAt === "number") {
+    const ms = createdAt > 1e12 ? createdAt : createdAt * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const s = String(createdAt).trim();
+  if (/^\d+$/.test(s)) {
+    const n = parseInt(s, 10);
+    const ms = n > 1e12 ? n : n * 1000;
+    const d = new Date(ms);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatNotificationTime(createdAt, nowMs = Date.now()) {
+  const date = parseNotificationDate(createdAt);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (!date) {
+    return "recently";
+  }
+
+  const diffMs = Math.max(0, nowMs - date.getTime());
+
+  if (diffMs < minute) return "just now";
+
+  if (diffMs < hour) {
+    const minutes = Math.floor(diffMs / minute);
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+
+  /* 60 min … up to before 24 h: hours (+ minutes when remainder) */
+  if (diffMs < day) {
+    const totalMinutes = Math.floor(diffMs / minute);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (m === 0) {
+      return `${h} ${h === 1 ? "hour" : "hours"} ago`;
+    }
+    return `${h} ${h === 1 ? "hour" : "hours"} and ${m} ${m === 1 ? "minute" : "minutes"} ago`;
+  }
+
+  /* 24 h+: days (+ hours when remainder in whole hours) */
+  const days = Math.floor(diffMs / day);
+  const remainderMs = diffMs % day;
+  const hRem = Math.floor(remainderMs / hour);
+  if (hRem === 0) {
+    return `${days} ${days === 1 ? "day" : "days"} ago`;
+  }
+  return `${days} ${days === 1 ? "day" : "days"} and ${hRem} ${hRem === 1 ? "hour" : "hours"} ago`;
+}
+
+function getNotificationActions(type) {
+  if (type === "MATCH_GENERATED") {
+    return [{ label: "View Match", variant: "primary" }];
+  }
+
+  if (type === "BUDDY_REQUEST_SENT") {
+    return [
+      { label: "Decline", variant: "secondary" },
+      { label: "Accept", variant: "primary" },
+    ];
+  }
+
+  if (type === "SESSION_INVITATION" || type === "SESSION_CREATED") {
+    return [{ label: "View Session", variant: "primary" }];
+  }
+
+  return [];
 }

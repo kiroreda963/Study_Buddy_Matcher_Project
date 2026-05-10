@@ -22,21 +22,28 @@ const resolvers = {
       if (!context.user) {
         throw new Error("Unauthorized");
       }
-      if (
-        !args.notificationId ||
-        !context.prismanotification.findUnique({
-          where: { id: args.notificationId },
-        })
-      ) {
+      const { notificationId } = args;
+      if (!notificationId) {
+        throw new Error("Notification ID required");
+      }
+
+      const existing = await context.prisma.notification.findFirst({
+        where: {
+          id: notificationId,
+          userId: context.user.userId,
+        },
+      });
+      if (!existing) {
         throw new Error("Notification not found");
       }
+
       try {
         return await context.prisma.notification.update({
-          where: { id: args.notificationId },
+          where: { id: notificationId },
           data: { isRead: true },
         });
       } catch (error) {
-        throw new Error("Failed to mark notification as read");
+        throw new Error(error?.message || "Failed to mark notification as read");
       }
     },
   },

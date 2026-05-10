@@ -1,8 +1,8 @@
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { availabilityClient } from "../clients/apolloClients.jsx";
+import { availabilityClient, notificationClient } from "../clients/apolloClients.jsx";
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -69,11 +69,53 @@ const DELETE_AVAILABILITY = gql`
   }
 `;
 
+const GET_NOTIFICATIONS_BADGE = gql`
+  query GetNotificationsBadge {
+    getNotifications {
+      id
+      isRead
+    }
+  }
+`;
+
 const GREEN = "#3fcf8e";
 const LIGHT_GREEN_BG = "#f0faf5";
 const GRAY_BORDER = "#e0e0e0";
 const TEXT_MAIN = "#1a1a1a";
 const TEXT_MUTED = "#888";
+
+const SLOT_ICON_BTN = {
+  width: 48,
+  height: 48,
+  background: "#fafafa",
+  border: "none",
+  borderRadius: 9,
+  padding: 0,
+  margin: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  boxSizing: "border-box",
+};
+
+const SLOT_ICON_INNER = {
+  width: 31,
+  height: 31,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const SLOT_ICON_IMG = {
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+  objectPosition: "center",
+  display: "block",
+  flexShrink: 0,
+};
 
 export default function App() {
   const today = new Date();
@@ -83,21 +125,47 @@ export default function App() {
     client: availabilityClient,
     fetchPolicy: "cache-and-network",
   });
-  const [createAvailability, createState] = useMutation(CREATE_AVAILABILITY, { client: availabilityClient });
-  const [updateAvailability, updateState] = useMutation(UPDATE_AVAILABILITY, { client: availabilityClient });
-  const [deleteAvailability, deleteState] = useMutation(DELETE_AVAILABILITY, { client: availabilityClient });
+  const [createAvailability] = useMutation(CREATE_AVAILABILITY, { client: availabilityClient });
+  const [updateAvailability] = useMutation(UPDATE_AVAILABILITY, { client: availabilityClient });
+  const [deleteAvailability] = useMutation(DELETE_AVAILABILITY, { client: availabilityClient });
+  const { data: notificationData } = useQuery(GET_NOTIFICATIONS_BADGE, {
+    client: notificationClient,
+    fetchPolicy: "cache-and-network",
+  });
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
   const [noAvailDates] = useState(["2025-09-05"]);
+  const [draftSlots, setDraftSlots] = useState([]);
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const [editingSlot, setEditingSlot] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newStart, setNewStart] = useState("09:00 AM");
   const [newEnd, setNewEnd] = useState("10:00 AM");
   const [mutationError, setMutationError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
 
   const daysInMonth = getDaysInMonth(viewMonth, viewYear);
   const firstDay = getFirstDayOfMonth(viewMonth, viewYear);
+  const unreadCount = (notificationData?.getNotifications ?? []).filter((n) => !n.isRead).length;
+
+  const serverSlots = useMemo(() => {
+    const slots = data?.getAvailabilityByUser ?? [];
+    return slots.map((s) => ({
+      id: s.id,
+      startIso: s.startTime,
+      endIso: s.endTime,
+      start: isoToTime12(s.startTime),
+      end: isoToTime12(s.endTime),
+    }));
+  }, [data]);
+
+  useEffect(() => {
+    if (!hasPendingChanges) {
+      setDraftSlots(serverSlots);
+    }
+  }, [serverSlots, hasPendingChanges]);
 
   function prevMonth() {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
@@ -125,26 +193,30 @@ export default function App() {
   }
 
   async function deleteSlot(id) {
-    await deleteAvailability({ variables: { id } });
-    refetch();
+    setMutationError("");
+    setSaveMessage("");
+    setDraftSlots((prev) => prev.filter((slot) => slot.id !== id));
+    setHasPendingChanges(true);
   }
 
   async function addSlot() {
     try {
       setMutationError("");
+      setSaveMessage("");
       const startIso = timeOnSelectedDateToIso(selectedDate, to24(newStart));
       const endIso = timeOnSelectedDateToIso(selectedDate, to24(newEnd));
-      const result = await createAvailability({
-        variables: { input: { startTime: startIso, endTime: endIso } },
-      });
-
-      const response = result?.data?.createAvailability;
-      if (!response?.success) {
-        throw new Error(response?.message || "Could not create availability slot.");
-      }
-
+      setDraftSlots((prev) => [
+        ...prev,
+        {
+          id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          startIso,
+          endIso,
+          start: isoToTime12(startIso),
+          end: isoToTime12(endIso),
+        },
+      ]);
+      setHasPendingChanges(true);
       setShowAddModal(false);
-      await refetch();
     } catch (err) {
       setMutationError(getMutationErrorMessage(err, "Could not create availability slot."));
     }
@@ -155,40 +227,102 @@ export default function App() {
 
     try {
       setMutationError("");
+      setSaveMessage("");
       const startIso = timeOnSelectedDateToIso(selectedDate, to24(newStart));
       const endIso = timeOnSelectedDateToIso(selectedDate, to24(newEnd));
-      const result = await updateAvailability({
-        variables: {
-          id: editingSlot.id,
-          input: { startTime: startIso, endTime: endIso },
-        },
-      });
-
-      const response = result?.data?.updateAvailability;
-      if (!response?.success) {
-        throw new Error(response?.message || "Could not update availability slot.");
-      }
-
+      setDraftSlots((prev) =>
+        prev.map((slot) =>
+          slot.id === editingSlot.id
+            ? {
+                ...slot,
+                startIso,
+                endIso,
+                start: isoToTime12(startIso),
+                end: isoToTime12(endIso),
+              }
+            : slot
+        )
+      );
+      setHasPendingChanges(true);
       setEditingSlot(null);
       setShowAddModal(false);
-      await refetch();
     } catch (err) {
       setMutationError(getMutationErrorMessage(err, "Could not update availability slot."));
     }
   }
 
   const currentSlots = useMemo(() => {
-    const slots = data?.getAvailabilityByUser ?? [];
-    return slots
-      .filter((s) => slotMatchesSelectedDate(s.startTime, selectedDate))
-      .map((s) => ({
-        id: s.id,
-        startIso: s.startTime,
-        endIso: s.endTime,
-        start: isoToTime12(s.startTime),
-        end: isoToTime12(s.endTime),
-      }));
-  }, [data, selectedDate]);
+    return draftSlots.filter((s) => slotMatchesSelectedDate(s.startIso, selectedDate));
+  }, [draftSlots, selectedDate]);
+
+  async function saveAllChanges() {
+    setMutationError("");
+    setSaveMessage("");
+    setIsSavingChanges(true);
+
+    try {
+      const originalById = new Map(serverSlots.map((slot) => [slot.id, slot]));
+      const draftPersistentSlots = draftSlots.filter((slot) => !String(slot.id).startsWith("temp-"));
+      const draftById = new Map(draftPersistentSlots.map((slot) => [slot.id, slot]));
+
+      const deletedSlots = serverSlots.filter((slot) => !draftById.has(slot.id));
+      const createdSlots = draftSlots.filter((slot) => String(slot.id).startsWith("temp-"));
+      const updatedSlots = draftPersistentSlots.filter((slot) => {
+        const original = originalById.get(slot.id);
+        return original && (original.startIso !== slot.startIso || original.endIso !== slot.endIso);
+      });
+
+      for (const slot of deletedSlots) {
+        const result = await deleteAvailability({ variables: { id: slot.id } });
+        const response = result?.data?.deleteAvailability;
+        if (!response?.success) {
+          throw new Error(response?.message || "Could not delete availability slot.");
+        }
+      }
+
+      for (const slot of updatedSlots) {
+        const result = await updateAvailability({
+          variables: {
+            id: slot.id,
+            input: { startTime: slot.startIso, endTime: slot.endIso },
+          },
+        });
+        const response = result?.data?.updateAvailability;
+        if (!response?.success) {
+          throw new Error(response?.message || "Could not update availability slot.");
+        }
+      }
+
+      for (const slot of createdSlots) {
+        const result = await createAvailability({
+          variables: {
+            input: { startTime: slot.startIso, endTime: slot.endIso },
+          },
+        });
+        const response = result?.data?.createAvailability;
+        if (!response?.success) {
+          throw new Error(response?.message || "Could not create availability slot.");
+        }
+      }
+
+      setHasPendingChanges(false);
+      await refetch();
+      setSaveMessage("Changes saved successfully");
+    } catch (err) {
+      setMutationError(getMutationErrorMessage(err, "Could not save availability changes."));
+    } finally {
+      setIsSavingChanges(false);
+    }
+  }
+
+  function cancelAllChanges() {
+    setMutationError("");
+    setSaveMessage("");
+    setDraftSlots(serverSlots);
+    setHasPendingChanges(false);
+    setEditingSlot(null);
+    setShowAddModal(false);
+  }
 
   // Calendar grid
   const calCells = [];
@@ -223,9 +357,19 @@ export default function App() {
             </span>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexShrink: 0, lineHeight: 0 }}>
           <div
-            style={{ position: "relative", cursor: "pointer" }}
+            style={{
+              position: "relative",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 36,
+              height: 36,
+              flexShrink: 0,
+              boxSizing: "border-box",
+            }}
             onClick={() => navigate("/notifications")}
             role="button"
             tabIndex={0}
@@ -235,19 +379,54 @@ export default function App() {
             aria-label="Open notifications"
           >
             <img
-              src="/notficationBell.png"
+              src="/bell_icon.svg"
               alt="Notifications"
               style={{ width: 36, height: 36, objectFit: "contain", display: "block" }}
             />
+            <span style={{
+              position: "absolute",
+              top: -6,
+              right: -8,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 999,
+              background: GREEN,
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 5px",
+              lineHeight: 1,
+            }}>
+              {unreadCount}
+            </span>
           </div>
-          <div style={{
-            width: 38, height: 38, borderRadius: "50%", border: `2px solid ${GRAY_BORDER}`,
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f5f5f5"
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="8" r="4" fill="#555" />
-              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#555" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              boxSizing: "border-box",
+              borderRadius: "50%",
+              border: `2px solid ${GRAY_BORDER}`,
+              overflow: "hidden",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              background: "#fafafa",
+              lineHeight: 0,
+              marginTop: -3,
+            }}
+            aria-label="Profile picture"
+          >
+            <img
+              src="/pfp.png"
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           </div>
         </div>
       </nav>
@@ -351,6 +530,16 @@ export default function App() {
             <div style={{ fontWeight: 700, fontSize: 15, color: GREEN }}>
               {selectedDate ? formatDayHeader(selectedDate + "T12:00:00") : "Select a date"}
             </div>
+            {hasPendingChanges && (
+              <div style={{ fontSize: 13, color: "#b45309", fontWeight: 700 }}>
+                You have unsaved changes.
+              </div>
+            )}
+            {saveMessage && (
+              <div style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>
+                {saveMessage}
+              </div>
+            )}
 
             {/* Add Time Slot Button */}
             <button onClick={() => { setMutationError(""); setShowAddModal(true); }} style={{
@@ -380,11 +569,29 @@ export default function App() {
                   <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_MAIN }}>
                     {slot.start} - {slot.end}
                   </span>
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                     <button onClick={() => { setMutationError(""); setEditingSlot(slot); setNewStart(slot.start); setNewEnd(slot.end); setShowAddModal(true); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#888" }}>✏️</button>
-                    <button disabled={deleteState.loading} onClick={() => deleteSlot(slot.id)}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#e55" }}>🗑️</button>
+                      type="button"
+                      style={{ ...SLOT_ICON_BTN, cursor: "pointer" }}
+                      aria-label="Edit slot"
+                    >
+                      <span style={SLOT_ICON_INNER}>
+                        <img src="/edit_button.svg" alt="" style={SLOT_ICON_IMG} />
+                      </span>
+                    </button>
+                    <button disabled={isSavingChanges} onClick={() => deleteSlot(slot.id)}
+                      type="button"
+                      style={{
+                        ...SLOT_ICON_BTN,
+                        cursor: isSavingChanges ? "not-allowed" : "pointer",
+                        opacity: isSavingChanges ? 0.45 : 1,
+                      }}
+                      aria-label="Delete slot"
+                    >
+                      <span style={SLOT_ICON_INNER}>
+                        <img src="/delete_button.svg" alt="" style={SLOT_ICON_IMG} />
+                      </span>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -392,14 +599,16 @@ export default function App() {
 
             {/* Action Buttons */}
             <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-              <button style={{
+              <button onClick={cancelAllChanges} disabled={isSavingChanges || !hasPendingChanges} style={{
                 flex: 1, padding: "13px 0", borderRadius: 10, border: `1.5px solid ${GRAY_BORDER}`,
-                background: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", color: TEXT_MAIN
+                background: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", color: TEXT_MAIN,
+                opacity: isSavingChanges || !hasPendingChanges ? 0.6 : 1
               }}>Cancel</button>
-              <button style={{
+              <button onClick={saveAllChanges} disabled={isSavingChanges || !hasPendingChanges} style={{
                 flex: 1, padding: "13px 0", borderRadius: 10, border: "none",
-                background: GREEN, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer"
-              }}>Save</button>
+                background: GREEN, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer",
+                opacity: isSavingChanges || !hasPendingChanges ? 0.6 : 1
+              }}>{isSavingChanges ? "Saving..." : "Save"}</button>
             </div>
           </div>
         </div>
@@ -445,7 +654,7 @@ export default function App() {
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => { setShowAddModal(false); setEditingSlot(null); setMutationError(""); }}
                 style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: `1.5px solid ${GRAY_BORDER}`, background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-              <button onClick={editingSlot ? saveEditedSlot : addSlot} disabled={createState.loading || updateState.loading} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "none", background: GREEN, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={editingSlot ? saveEditedSlot : addSlot} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "none", background: GREEN, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
                 {editingSlot ? "Update" : "Add"}
               </button>
             </div>

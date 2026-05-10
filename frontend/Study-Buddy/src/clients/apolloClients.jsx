@@ -45,3 +45,10 @@ export const availabilityClient = new ApolloClient({
   link: authLink.concat(availabilityHttpLink),
   cache: new InMemoryCache(),
 });
+
+const notificationApiUrl = import.meta.env.VITE_NOTIFICATION_API_URI || "http://localhost:3004/";
+const notificationHttpLink = new HttpLink({ uri: notificationApiUrl });
+export const notificationClient = new ApolloClient({
+  link: authLink.concat(notificationHttpLink),
+  cache: new InMemoryCache(),
+});
