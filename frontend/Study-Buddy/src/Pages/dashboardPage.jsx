@@ -15,7 +15,7 @@ import {
 } from "../assets/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { gql } from "@apollo/client";
-import { authClient, sessionClient } from "../clients/apolloClients.jsx";
+import { authClient, sessionClient , matchingClient , profileClient } from "../clients/apolloClients.jsx";
 
 // ── GraphQL helper ──────────────────────────────────────────────
 const SEARCH_QUERY = gql`
@@ -54,11 +54,22 @@ const INVITATIONS_QUERY = gql`
   }
 `;
 
-const GET_USER_PROFILE = gql`
-  query GetUserProfile($userId: ID!) {
+/** Profile-preferences API (`getProfileById` takes String!) */
+const GET_PROFILE_BY_ID = gql`
+  query ProfileById($userId: String!) {
+    getProfileById(userId: $userId) {
+      userId
+      university
+      academicYear
+    }
+  }
+`;
+
+/** Auth API: user display name */
+const GET_USER_DISPLAY_NAME = gql`
+  query UserDisplayName($userId: ID!) {
     getUserProfile(userId: $userId) {
       name
-      university
     }
   }
 `;
@@ -74,6 +85,26 @@ const DELETE_INVITATION = gql`
   mutation DeleteInvitation($deleteInvitationId: ID!) {
     deleteInvitation(id: $deleteInvitationId) {
       id
+    }
+  }
+`;
+
+const GENERATE_MATCHES = gql`
+  mutation generateMatches {
+    generateMatches {
+      id
+      ignored
+      score
+      matchedUserId
+    }
+  }
+`;
+
+const SEND_BUDDY_REQUEST = gql`
+  mutation SendBuddyRequest($receiverId: String!) {
+    sendBuddyRequest(receiverId: $receiverId) {
+      id
+      status
     }
   }
 `;
@@ -96,96 +127,6 @@ const STATS = [
   { icon: book, value: 5, label: "Courses\nCompleted" },
   { icon: sessionCompleted, value: 20, label: "Sessions\nCompleted" },
   { icon: upcomingCalender, value: 3, label: "Upcoming\nSessions" },
-];
-
-const SESSION_REQUESTS = [
-  {
-    id: 1,
-    name: "Ahmed Hassan",
-    role: "Software",
-    university: "Cairo University",
-    level: "Junior",
-    topic: "Operating Systems",
-    tags: ["Online", "Discussion", "Help Needed", "Question"],
-    time: "5:00 PM",
-    day: "OCT",
-    date: 19,
-    avatar: null,
-  },
-  {
-    id: 2,
-    name: "Ahmed Hassan",
-    role: "Software",
-    university: "Cairo University",
-    level: "Junior",
-    topic: "Operating Systems",
-    tags: ["Online", "Discussion"],
-    time: "5:00 PM",
-    day: "Sep",
-    date: 25,
-    avatar: null,
-  },
-  {
-    id: 3,
-    name: "Ahmed Hassan",
-    role: "Software",
-    university: "Cairo University",
-    level: "Junior",
-    topic: "Operating Systems",
-    tags: ["Online", "Discussion"],
-    time: "5:00 PM",
-    day: "Sep",
-    date: 25,
-    avatar: null,
-  },
-  {
-    id: 4,
-    name: "Ahmed Hassan",
-    role: "Software",
-    university: "Cairo University",
-    level: "Junior",
-    topic: "Operating Systems",
-    tags: ["Online", "Discussion"],
-    time: "5:00 PM",
-    day: "Sep",
-    date: 25,
-    avatar: null,
-  },
-];
-
-const RECOMMENDED = [
-  {
-    id: 1,
-    name: "Ahmed Hassan",
-    university: "Cairo University",
-    major: "Business",
-    score: 82,
-    connected: false,
-  },
-  {
-    id: 2,
-    name: "Ahmed Hassan",
-    university: "Cairo University",
-    major: "Business",
-    score: 92,
-    connected: false,
-  },
-  {
-    id: 3,
-    name: "Ahmed Hassan",
-    university: "Cairo University",
-    major: "Business",
-    score: 92,
-    connected: false,
-  },
-  {
-    id: 4,
-    name: "Ahmed Hassan",
-    university: "Cairo University",
-    major: "Business",
-    score: 92,
-    connected: false,
-  },
 ];
 
 const NAV_TOP = [
@@ -473,7 +414,10 @@ export default function Dashboard() {
   const [searchInput, setSearchInput] = useState("");
   const [searchPage, setSearchPage] = useState(null); // null = dashboard, string = search query
   const [sessionRequests, setSessionRequests] = useState([]);
-  const [recommended, setRecommended] = useState(RECOMMENDED);
+  const [acceptingInviteId, setAcceptingInviteId] = useState(null);
+  const [recommended, setRecommended] = useState([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(true);
+  const [recommendedError, setRecommendedError] = useState("");
   const [userData, setUserData] = useState(null);
   const { user, logout } = useAuth();
 
@@ -505,33 +449,41 @@ export default function Dashboard() {
 
         const invitations = invitationsRes?.data.invitationsByUser ?? [];
         console.log("Invitations fetched:", invitations);
-        console.log(
-          new Date(Number(invitations[0].session.date)).toLocaleTimeString(),
-        );
+        if (invitations.length > 0) {
+          console.log(
+            new Date(Number(invitations[0].session.date)).toLocaleTimeString(),
+          );
+        }
 
-        // 2. For each invitation, fetch the author's profile and combine data
+        // 2. For each invitation, fetch the author's profile + auth name
         const combined = await Promise.all(
-          invitations.map(async (invite, index) => {
-            const profileRes = await authClient.query({
-              query: GET_USER_PROFILE,
-              variables: {
-                userId: invite.authorId,
-              },
-            });
+          invitations.map(async (invite) => {
+            const userId = String(invite.authorId);
+            const [profileRes, authRes] = await Promise.all([
+              profileClient.query({
+                query: GET_PROFILE_BY_ID,
+                variables: { userId },
+              }),
+              authClient.query({
+                query: GET_USER_DISPLAY_NAME,
+                variables: { userId },
+              }),
+            ]);
 
-            const profile = profileRes.data.getUserProfile;
+            const profile = profileRes.data?.getProfileById;
+            const name = authRes.data?.getUserProfile?.name ?? "Unknown";
 
             return {
               id: invite.id,
-              name: profile.name,
-              university: profile.university,
+              name,
+              university: profile?.university ?? "—",
               topic: invite.session.topic,
               tags: invite.session.sessionType,
               day: new Date(Number(invite.session.date)).toLocaleString(
                 "default",
                 { month: "short" },
               ),
-              avatars: profile.avatarUrl || null,
+              avatars: null,
 
               time: new Date(Number(invite.session.date)).toLocaleTimeString(),
               date: new Date(Number(invite.session.date)).getDate(),
@@ -546,24 +498,99 @@ export default function Dashboard() {
         console.error(error);
       }
     };
-    // console.log(sessionRequests);
+
+    const fetchRecommendedMatches = async () => {
+      setRecommendedLoading(true);
+      setRecommendedError("");
+      try {
+        const { data, errors } = await matchingClient.mutate({
+          mutation: GENERATE_MATCHES,
+        });
+        if (errors?.length) {
+          throw new Error(errors[0].message);
+        }
+        const matches = data?.generateMatches ?? [];
+        const active = matches.filter((m) => !m.ignored);
+        const withProfiles = await Promise.all(
+          active.map(async (m) => {
+            const uid = String(m.matchedUserId);
+            try {
+              const [profileRes, authRes] = await Promise.all([
+                profileClient.query({
+                  query: GET_PROFILE_BY_ID,
+                  variables: { userId: uid },
+                }),
+                authClient.query({
+                  query: GET_USER_DISPLAY_NAME,
+                  variables: { userId: uid },
+                }),
+              ]);
+              const p = profileRes.data?.getProfileById;
+              const name = authRes.data?.getUserProfile?.name ?? "Unknown";
+              return {
+                id: m.id,
+                matchedUserId: m.matchedUserId,
+                score: Math.round(Number(m.score)),
+                name,
+                university: p?.university ?? "—",
+                academicYear: p?.academicYear ?? "",
+                buddyRequestSending: false,
+                buddyRequestSent: false,
+              };
+            } catch {
+              return {
+                id: m.id,
+                matchedUserId: m.matchedUserId,
+                score: Math.round(Number(m.score)),
+                name: "Unknown",
+                university: "—",
+                academicYear: "",
+                buddyRequestSending: false,
+                buddyRequestSent: false,
+              };
+            }
+          }),
+        );
+        setRecommended(withProfiles);
+      } catch (error) {
+        console.error(error);
+        setRecommendedError(
+          error instanceof Error ? error.message : "Failed to load matches",
+        );
+        setRecommended([]);
+      } finally {
+        setRecommendedLoading(false);
+      }
+    };
 
     fetchUser();
     fetchSessionRequests();
+    fetchRecommendedMatches();
   }, []);
 
-  const acceptSessionRequest = (inviteId, sessionId) => {
-    sessionClient.mutate({
-      mutation: JOIN_STUDY_SESSION,
-      variables: { sessionId: sessionId },
-    })
-    window.location.reload();
-    ;
-
-    sessionClient.mutate({
-      mutation: DELETE_INVITATION,
-      variables: { deleteInvitationId: inviteId },
-    });
+  const acceptSessionRequest = async (inviteId, sessionId) => {
+    setAcceptingInviteId(inviteId);
+    try {
+      await sessionClient.mutate({
+        mutation: JOIN_STUDY_SESSION,
+        variables: { sessionId },
+      });
+      await sessionClient.mutate({
+        mutation: DELETE_INVITATION,
+        variables: { deleteInvitationId: inviteId },
+      });
+      setSessionRequests((prev) => prev.filter((s) => s.id !== inviteId));
+    } catch (e) {
+      const msg =
+        e?.graphQLErrors?.[0]?.message ??
+        e?.networkError?.result?.errors?.[0]?.message ??
+        e?.message ??
+        "Could not accept this invitation";
+      console.error(e);
+      window.alert(msg);
+    } finally {
+      setAcceptingInviteId(null);
+    }
   };
 
   const handleSearchSubmit = (e) => {
@@ -571,10 +598,47 @@ export default function Dashboard() {
     if (searchInput.trim()) setSearchPage(searchInput.trim());
   };
 
-  const toggleConnect = (id) => {
+  const sendBuddyRequestForMatch = async (matchId, receiverId) => {
     setRecommended((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, connected: !r.connected } : r)),
+      prev.map((r) =>
+        r.id === matchId ? { ...r, buddyRequestSending: true } : r,
+      ),
     );
+    try {
+      await matchingClient.mutate({
+        mutation: SEND_BUDDY_REQUEST,
+        variables: { receiverId: String(receiverId) },
+      });
+      setRecommended((prev) =>
+        prev.map((r) =>
+          r.id === matchId
+            ? { ...r, buddyRequestSending: false, buddyRequestSent: true }
+            : r,
+        ),
+      );
+    } catch (e) {
+      const msg =
+        e?.graphQLErrors?.[0]?.message ??
+        e?.message ??
+        "Could not send buddy request";
+      const treatAsSent =
+        /already exists|already been accepted|already connected/i.test(msg);
+      setRecommended((prev) =>
+        prev.map((r) =>
+          r.id === matchId
+            ? {
+                ...r,
+                buddyRequestSending: false,
+                ...(treatAsSent ? { buddyRequestSent: true } : {}),
+              }
+            : r,
+        ),
+      );
+      if (!treatAsSent) {
+        console.error(e);
+        window.alert(msg);
+      }
+    }
   };
 
   return (
@@ -770,7 +834,8 @@ export default function Dashboard() {
           display: flex; align-items: center; gap: 5px;
         }
         .btn-connect.connected { background: #4ADE80; color: white; }
-        .btn-connect:hover { background: #4ADE80; color: white; }
+        .btn-connect:hover:not(:disabled) { background: #4ADE80; color: white; }
+        .btn-connect:disabled { opacity: 0.65; cursor: not-allowed; }
       `}</style>
 
       <div className="dash-layout">
@@ -900,12 +965,14 @@ export default function Dashboard() {
                       <div className="session-actions">
                         <button className="btn-profile">View Profile</button>
                         <button
+                          type="button"
                           className="btn-accept"
+                          disabled={acceptingInviteId !== null}
                           onClick={() =>
                             acceptSessionRequest(s.id, s.sessionId)
                           }
                         >
-                          Accept
+                          {acceptingInviteId === s.id ? "Accepting…" : "Accept"}
                         </button>
                       </div>
                     </div>
@@ -922,30 +989,84 @@ export default function Dashboard() {
                   <button className="show-all">Show all</button>
                 </div>
                 <div className="rec-row">
-                  {recommended.map((r) => (
-                    <div key={r.id} className="rec-card">
-                      <span className="rec-score">{r.score}%</span>
-                      <button className="rec-close">✕</button>
-                      <div className="rec-avatar">👤</div>
-                      <div className="rec-name">{r.name}</div>
-                      <div className="rec-uni">
-                        {r.university}
-                        <br />
-                        {r.major}
-                      </div>
-                      <button
-                        className={`btn-connect${r.connected ? " connected" : ""}`}
-                        onClick={() => toggleConnect(r.id)}
-                      >
-                        <img
-                          src={userConnect}
-                          alt="Connect"
-                          className="btn-icon"
-                        />
-                        {r.connected ? "Connected" : "Connect"}
-                      </button>
+                  {recommendedLoading && (
+                    <div
+                      style={{
+                        padding: "24px 16px",
+                        color: "#64748b",
+                        fontSize: 14,
+                      }}
+                    >
+                      Loading recommendations…
                     </div>
-                  ))}
+                  )}
+                  {!recommendedLoading && recommendedError && (
+                    <div
+                      style={{
+                        padding: "24px 16px",
+                        color: "#b91c1c",
+                        fontSize: 14,
+                      }}
+                    >
+                      {recommendedError}
+                    </div>
+                  )}
+                  {!recommendedLoading &&
+                    !recommendedError &&
+                    recommended.length === 0 && (
+                      <div
+                        style={{
+                          padding: "24px 16px",
+                          color: "#64748b",
+                          fontSize: 14,
+                        }}
+                      >
+                        No study buddy matches yet. Complete your matching
+                        profile to see suggestions.
+                      </div>
+                    )}
+                  {!recommendedLoading &&
+                    !recommendedError &&
+                    recommended.map((r) => (
+                      <div key={r.id} className="rec-card">
+                        <span className="rec-score">{r.score}%</span>
+                        <button type="button" className="rec-close">
+                          ✕
+                        </button>
+                        <div className="rec-avatar">👤</div>
+                        <div className="rec-name">{r.name}</div>
+                        <div className="rec-uni">
+                          {r.university}
+                          {r.academicYear ? (
+                            <>
+                              <br />
+                              {r.academicYear}
+                            </>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          className={`btn-connect${r.buddyRequestSent ? " connected" : ""}`}
+                          disabled={
+                            r.buddyRequestSending || r.buddyRequestSent
+                          }
+                          onClick={() =>
+                            sendBuddyRequestForMatch(r.id, r.matchedUserId)
+                          }
+                        >
+                          <img
+                            src={userConnect}
+                            alt="Connect"
+                            className="btn-icon"
+                          />
+                          {r.buddyRequestSending
+                            ? "Sending…"
+                            : r.buddyRequestSent
+                              ? "Request sent"
+                              : "Connect"}
+                        </button>
+                      </div>
+                    ))}
                 </div>
               </div>
             </div>

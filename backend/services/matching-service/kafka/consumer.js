@@ -55,7 +55,7 @@ async function startConsumer() {
         process.env.KAFKA_PROFILE_TOPIC || "UserPreferencesUpdated",
         process.env.KAFKA_AVAILABILITY_TOPIC || "availability-events",
       ],
-      fromBeginning: false,
+      fromBeginning: (process.env.KAFKA_FROM_BEGINNING || "true") === "true",
     });
 
     await consumer.run({
