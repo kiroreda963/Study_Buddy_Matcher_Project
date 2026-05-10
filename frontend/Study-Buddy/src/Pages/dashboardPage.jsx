@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   book,
   calendar,
@@ -18,19 +18,6 @@ import { gql } from "@apollo/client";
 import { authClient, sessionClient , matchingClient , profileClient } from "../clients/apolloClients.jsx";
 
 // ── GraphQL helper ──────────────────────────────────────────────
-const SEARCH_QUERY = gql`
-  query SearchStudyBuddies($query: String!) {
-    searchStudyBuddies(query: $query) {
-      id
-      name
-      university
-      major
-      matchScore
-      avatarUrl
-    }
-  }
-`;
-
 const ME_QUERY = gql`
   query Me {
     me {
@@ -109,17 +96,6 @@ const SEND_BUDDY_REQUEST = gql`
   }
 `;
 
-async function graphqlRequest(query, variables = {}) {
-  const res = await fetch("/graphql", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
-  const data = await res.json();
-  if (data.errors) throw new Error(data.errors[0].message);
-  return data.data;
-}
-
 // ── Constants ───────────────────────────────────────────────────
 const HERO_IMAGE_URL = "https://i.ibb.co/nMXjdQgV/Untitled.png";
 
@@ -171,64 +147,129 @@ function Avatar({ size = 36 }) {
   );
 }
 
-// ── Search Results Page ──────────────────────────────────────────
+// ── Search Results Page (filters generated matches) ─────────────
 function SearchPage({ query, onBack }) {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [localQuery, setLocalQuery] = useState(query);
   const [inputVal, setInputVal] = useState(query);
+  /** match id -> { sending?: boolean, sent?: boolean } */
+  const [buddyBtn, setBuddyBtn] = useState({});
 
-  const doSearch = async (q) => {
-    if (!q.trim()) return;
+  const doSearch = useCallback(async (q) => {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      // Mocked results — replace with real graphqlRequest call when backend is ready
-      // const data = await graphqlRequest(SEARCH_QUERY, { query: q });
-      // setResults(data.searchStudyBuddies);
-      await new Promise((r) => setTimeout(r, 700));
-      setResults([
-        {
-          id: 1,
-          name: "Sara Ahmed",
-          university: "Cairo University",
-          major: "CS",
-          matchScore: 95,
-          avatarUrl: null,
-        },
-        {
-          id: 2,
-          name: "Omar Khalil",
-          university: "AUC",
-          major: "Engineering",
-          matchScore: 88,
-          avatarUrl: null,
-        },
-        {
-          id: 3,
-          name: "Nour Mostafa",
-          university: "GUC",
-          major: "Business",
-          matchScore: 76,
-          avatarUrl: null,
-        },
-      ]);
+      const { data, errors } = await matchingClient.mutate({
+        mutation: GENERATE_MATCHES,
+      });
+      if (errors?.length) {
+        throw new Error(errors[0].message);
+      }
+      const matches = data?.generateMatches ?? [];
+      const active = matches.filter((m) => !m.ignored);
+      const needle = trimmed.toLowerCase();
+
+      const enriched = await Promise.all(
+        active.map(async (m) => {
+          const uid = String(m.matchedUserId);
+          try {
+            const [profileRes, authRes] = await Promise.all([
+              profileClient.query({
+                query: GET_PROFILE_BY_ID,
+                variables: { userId: uid },
+              }),
+              authClient.query({
+                query: GET_USER_DISPLAY_NAME,
+                variables: { userId: uid },
+              }),
+            ]);
+            const p = profileRes.data?.getProfileById;
+            const name = authRes.data?.getUserProfile?.name ?? "Unknown";
+            return {
+              id: m.id,
+              matchedUserId: m.matchedUserId,
+              name,
+              university: p?.university ?? "—",
+              academicYear: p?.academicYear ?? "",
+              matchScore: Math.round(Number(m.score)),
+            };
+          } catch {
+            return {
+              id: m.id,
+              matchedUserId: m.matchedUserId,
+              name: "Unknown",
+              university: "—",
+              academicYear: "",
+              matchScore: Math.round(Number(m.score)),
+            };
+          }
+        }),
+      );
+
+      const filtered = enriched.filter((r) => {
+        const hay = `${r.name} ${r.university} ${r.academicYear}`.toLowerCase();
+        return hay.includes(needle);
+      });
+
+      setResults(filtered);
     } catch (e) {
-      setError(e.message || "Search failed.");
+      setError(
+        e instanceof Error ? e.message : "Search failed.",
+      );
+      setResults([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  useState(() => {
-    doSearch(query);
   }, []);
+
+  useEffect(() => {
+    doSearch(query);
+  }, [query, doSearch]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     setLocalQuery(inputVal);
     doSearch(inputVal);
+  };
+
+  const sendBuddyRequestFromSearch = async (matchId, receiverId) => {
+    setBuddyBtn((prev) => ({
+      ...prev,
+      [matchId]: { ...prev[matchId], sending: true },
+    }));
+    try {
+      await matchingClient.mutate({
+        mutation: SEND_BUDDY_REQUEST,
+        variables: { receiverId: String(receiverId) },
+      });
+      setBuddyBtn((prev) => ({
+        ...prev,
+        [matchId]: { sending: false, sent: true },
+      }));
+    } catch (e) {
+      const msg =
+        e?.graphQLErrors?.[0]?.message ??
+        e?.message ??
+        "Could not send buddy request";
+      const treatAsSent =
+        /already exists|already been accepted|already connected/i.test(msg);
+      setBuddyBtn((prev) => ({
+        ...prev,
+        [matchId]: { sending: false, ...(treatAsSent ? { sent: true } : {}) },
+      }));
+      if (!treatAsSent) {
+        console.error(e);
+        window.alert(msg);
+      }
+    }
   };
 
   return (
@@ -371,7 +412,8 @@ function SearchPage({ query, onBack }) {
                   {r.name}
                 </div>
                 <div style={{ fontSize: 13, color: "#64748b" }}>
-                  {r.university} · {r.major}
+                  {r.university}
+                  {r.academicYear ? ` · ${r.academicYear}` : ""}
                 </div>
               </div>
               <div
@@ -387,19 +429,38 @@ function SearchPage({ query, onBack }) {
                 {r.matchScore}% match
               </div>
               <button
+                type="button"
+                disabled={
+                  buddyBtn[r.id]?.sending ||
+                  buddyBtn[r.id]?.sent
+                }
+                onClick={() =>
+                  sendBuddyRequestFromSearch(r.id, r.matchedUserId)
+                }
                 style={{
-                  background: "#4ADE80",
+                  background: buddyBtn[r.id]?.sent ? "#22c55e" : "#4ADE80",
                   color: "white",
                   border: "none",
                   borderRadius: 8,
                   padding: "8px 18px",
-                  cursor: "pointer",
+                  cursor:
+                    buddyBtn[r.id]?.sending || buddyBtn[r.id]?.sent
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity:
+                    buddyBtn[r.id]?.sending || buddyBtn[r.id]?.sent
+                      ? 0.85
+                      : 1,
                   fontFamily: "inherit",
                   fontWeight: 600,
                   fontSize: 13,
                 }}
               >
-                Connect
+                {buddyBtn[r.id]?.sending
+                  ? "Sending…"
+                  : buddyBtn[r.id]?.sent
+                    ? "Request sent"
+                    : "Connect"}
               </button>
             </div>
           ))}
