@@ -8,7 +8,9 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm ci --only=production
-RUN apt-get update && apt-get install -y openssl
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssl && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy application code
 COPY . .

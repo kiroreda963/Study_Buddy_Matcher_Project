@@ -133,6 +133,7 @@ const updateUserProfile = async (userId, email) => {
 };
 
 module.exports = {
+  getUserProfile,
   registerUser,
   loginUser,
   updateUserProfile,
