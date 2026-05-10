@@ -1,4 +1,4 @@
-import { ApolloClient, InMemoryCache, HttpLink, from } from "@apollo/client";
+import { ApolloClient, InMemoryCache, HttpLink } from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
 
 const authLink = setContext((_, { headers }) => {
@@ -36,5 +36,12 @@ const matchingApiUrl = import.meta.env.VITE_MATCHING_API_URI;
 const matchingHttpLink = new HttpLink({ uri: matchingApiUrl });
 export const matchingClient = new ApolloClient({
   link: authLink.concat(matchingHttpLink),
+  cache: new InMemoryCache(),
+});
+
+const availabilityApiUrl = import.meta.env.VITE_AVAILABILITY_API_URI || "http://localhost:3006/";
+const availabilityHttpLink = new HttpLink({ uri: availabilityApiUrl });
+export const availabilityClient = new ApolloClient({
+  link: authLink.concat(availabilityHttpLink),
   cache: new InMemoryCache(),
 });
