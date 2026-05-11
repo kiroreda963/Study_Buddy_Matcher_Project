@@ -14,6 +14,7 @@ import {
   bell,
 } from "../assets/icons.jsx";
 import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { authClient, sessionClient , matchingClient , profileClient } from "../clients/apolloClients.jsx";
 
@@ -1095,7 +1096,16 @@ export default function Dashboard() {
                           ✕
                         </button>
                         <div className="rec-avatar">👤</div>
-                        <div className="rec-name">{r.name}</div>
+                        <Link
+                          to={`/match/${r.id}`}
+                          className="rec-name"
+                          style={{
+                            color: "inherit",
+                            textDecoration: "none",
+                          }}
+                        >
+                          {r.name}
+                        </Link>
                         <div className="rec-uni">
                           {r.university}
                           {r.academicYear ? (

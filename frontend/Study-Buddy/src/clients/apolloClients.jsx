@@ -38,3 +38,10 @@ export const matchingClient = new ApolloClient({
   link: authLink.concat(matchingHttpLink),
   cache: new InMemoryCache(),
 });
+
+const availabilityApiUrl = import.meta.env.VITE_AVAILABILITY_API_URI;
+const availabilityHttpLink = new HttpLink({ uri: availabilityApiUrl });
+export const availabilityClient = new ApolloClient({
+  link: authLink.concat(availabilityHttpLink),
+  cache: new InMemoryCache(),
+});
