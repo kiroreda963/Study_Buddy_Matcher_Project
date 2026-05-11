@@ -13,13 +13,76 @@ import {
   REMOVE_TOPIC,
 } from '../graphql/operations';
 
+const COMMON_COURSES = [
+  'Introduction to Programming',
+  'Data Structures and Algorithms',
+  'Object-Oriented Programming',
+  'Database Systems',
+  'Operating Systems',
+  'Computer Networks',
+  'Software Engineering',
+  'Web Development',
+  'Mobile Application Development',
+  'Artificial Intelligence',
+  'Machine Learning',
+  'Deep Learning',
+  'Computer Vision',
+  'Natural Language Processing',
+  'Cybersecurity',
+  'Cloud Computing',
+  'Distributed Systems',
+  'Computer Architecture',
+  'Compiler Design',
+  'Theory of Computation',
+  'Discrete Mathematics',
+  'Linear Algebra',
+  'Calculus I',
+  'Calculus II',
+  'Probability and Statistics',
+  'Numerical Methods',
+  'Digital Logic Design',
+  'Embedded Systems',
+  'Human-Computer Interaction',
+  'Project Management',
+  'Data Science',
+  'Big Data Analytics',
+  'Blockchain Technology',
+  'Internet of Things',
+  'Game Development',
+  'Graphics and Visualization',
+  'Parallel Computing',
+  'Information Security',
+  'Software Testing',
+  'Agile Development',
+  'Microprocessors',
+  'Signal Processing',
+  'Communication Systems',
+  'Control Systems',
+  'Engineering Mathematics',
+  'Physics I',
+  'Physics II',
+  'Chemistry',
+  'Biology',
+  'Technical Writing',
+  'Business Communication',
+  'Economics',
+  'Accounting',
+  'Marketing',
+  'Management',
+  'Entrepreneurship',
+  'Research Methods',
+  'Ethics in Technology',
+  'Graduation Project I',
+  'Graduation Project II',
+];
+
 function ProfileSetupInner() {
   const navigate = useNavigate();
   const { token, logout, loading } = useAuth();
 
-useEffect(() => {
-  if (!loading && !token) navigate('/login');
-}, [token, loading, navigate]);
+  useEffect(() => {
+    if (!loading && !token) navigate('/login');
+  }, [token, loading, navigate]);
 
   const [university, setUniversity] = useState('');
   const [academicYear, setAcademicYear] = useState('');
@@ -30,30 +93,53 @@ useEffect(() => {
   const [saveStatus, setSaveStatus] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
 
   const courseInputRef = useRef(null);
   const topicInputRef = useRef(null);
+  const suggestionsRef = useRef(null);
 
   const { loading: profileLoading, data: profileData, error: profileError } = useQuery(GET_PROFILE, {
-  fetchPolicy: 'network-only',
-});
+    fetchPolicy: 'network-only',
+  });
 
-useEffect(() => {
-  if (profileError?.message?.toLowerCase().includes('unauthorized')) {
-    logout();
-    navigate('/login');
-  }
-}, [profileError]);
+  useEffect(() => {
+    if (profileError?.message?.toLowerCase().includes('unauthorized')) {
+      logout();
+      navigate('/login');
+    }
+  }, [profileError]);
 
-useEffect(() => {
-  if (profileData?.getProfile) {
-    const p = profileData.getProfile;
-    setUniversity(p.university || '');
-    setAcademicYear(p.academicYear || '');
-    setCourses(p.courses || []);
-    setTopics(p.topics || []);
-  }
-}, [profileData]);
+  useEffect(() => {
+    if (profileData?.getProfile) {
+      const p = profileData.getProfile;
+      setUniversity(p.university || '');
+      setAcademicYear(p.academicYear || '');
+      setCourses(p.courses || []);
+      setTopics(p.topics || []);
+    }
+  }, [profileData]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target) &&
+          courseInputRef.current && !courseInputRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+        setActiveSuggestion(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredSuggestions = courseInput.trim().length > 0
+    ? COMMON_COURSES.filter(course =>
+        course.toLowerCase().includes(courseInput.toLowerCase()) &&
+        !courses.some(c => c.name.toLowerCase() === course.toLowerCase())
+      ).slice(0, 6)
+    : [];
 
   const [createOrUpdateProfile] = useMutation(CREATE_OR_UPDATE_PROFILE);
   const [addCourse] = useMutation(ADD_COURSE);
@@ -61,19 +147,55 @@ useEffect(() => {
   const [addTopic] = useMutation(ADD_TOPIC);
   const [removeTopic] = useMutation(REMOVE_TOPIC);
 
-  const handleCourseKeyDown = async (e) => {
-    if ((e.key === 'Enter' || e.key === ',') && courseInput.trim()) {
-      e.preventDefault();
-      const name = courseInput.trim().replace(/,$/, '');
-      if (!name) return;
+  const doAddCourse = async (name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (courses.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
+      setError(`"${trimmed}" is already in your courses.`);
+      setTimeout(() => setError(''), 3000);
       setCourseInput('');
-      try {
-        const { data } = await addCourse({ variables: { courseName: name } });
-        setCourses(data.addCourse.courses);
-      } catch (err) {
-        setError('Failed to add course: ' + err.message);
+      return;
+    }
+    setCourseInput('');
+    setShowSuggestions(false);
+    setActiveSuggestion(-1);
+    try {
+      const { data } = await addCourse({ variables: { courseName: trimmed } });
+      setCourses(data.addCourse.courses);
+    } catch (err) {
+      setError('Failed to add course: ' + err.message);
+    }
+  };
+
+  const handleCourseInputChange = (e) => {
+    setCourseInput(e.target.value);
+    setShowSuggestions(true);
+    setActiveSuggestion(-1);
+  };
+
+  const handleCourseKeyDown = async (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveSuggestion(prev => Math.min(prev + 1, filteredSuggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveSuggestion(prev => Math.max(prev - 1, -1));
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveSuggestion(-1);
+    } else if ((e.key === 'Enter' || e.key === ',') && courseInput.trim()) {
+      e.preventDefault();
+      if (activeSuggestion >= 0 && filteredSuggestions[activeSuggestion]) {
+        await doAddCourse(filteredSuggestions[activeSuggestion]);
+      } else {
+        await doAddCourse(courseInput);
       }
     }
+  };
+
+  const handleSuggestionClick = async (suggestion) => {
+    await doAddCourse(suggestion);
+    courseInputRef.current?.focus();
   };
 
   const handleRemoveCourse = async (courseId) => {
@@ -90,6 +212,12 @@ useEffect(() => {
       e.preventDefault();
       const name = topicInput.trim().replace(/,$/, '');
       if (!name) return;
+      if (topics.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+        setError(`"${name}" is already in your topics.`);
+        setTimeout(() => setError(''), 3000);
+        setTopicInput('');
+        return;
+      }
       setTopicInput('');
       try {
         const { data } = await addTopic({ variables: { topicName: name } });
@@ -158,6 +286,11 @@ useEffect(() => {
         .ps-tags-input { border: none; outline: none; font-family: 'Nunito', sans-serif; font-size: 0.9375rem; color: #1a1a1a; background: transparent; min-width: 140px; flex: 1; }
         .ps-tags-input::placeholder { color: #a0aec0; }
         .ps-hint { font-size: 0.75rem; color: #a0aec0; margin-top: 5px; }
+        .ps-autocomplete-wrap { position: relative; }
+        .ps-suggestions { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); z-index: 100; overflow: hidden; }
+        .ps-suggestion-item { padding: 10px 14px; font-size: 0.9rem; font-family: 'Nunito', sans-serif; color: #1a1a1a; cursor: pointer; transition: background 0.12s; display: flex; align-items: center; gap: 8px; }
+        .ps-suggestion-item:hover, .ps-suggestion-item.active { background: #f0fdf4; color: #16a34a; }
+        .ps-suggestion-icon { font-size: 0.75rem; opacity: 0.5; }
         .ps-btn { display: block; width: 100%; padding: 14px; background: #4ADE80; color: white; font-family: 'Nunito', sans-serif; font-size: 0.9375rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border: none; border-radius: 50px; cursor: pointer; margin-top: 8px; transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s; box-shadow: 0 4px 14px rgba(74,222,128,0.35); }
         .ps-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(74,222,128,0.45); background: #22c55e; }
         .ps-btn:disabled { opacity: 0.65; cursor: not-allowed; }
@@ -195,20 +328,49 @@ useEffect(() => {
               <input className="ps-input" type="text" placeholder="e.g. Year 3, Sophomore, Junior…" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} />
             </div>
 
+            {/* Courses with autocomplete */}
             <div className="ps-group">
               <label className="ps-label">What courses are you currently taking?</label>
-              <div className="ps-tags-wrap" onClick={() => courseInputRef.current?.focus()}>
-                {courses.map((c) => (
-                  <span key={c.id} className="ps-tag">
-                    {c.name}
-                    <button className="ps-tag-remove" onClick={(e) => { e.stopPropagation(); handleRemoveCourse(c.id); }}>×</button>
-                  </span>
-                ))}
-                <input ref={courseInputRef} className="ps-tags-input" type="text" placeholder={courses.length === 0 ? 'Type a course and press Enter…' : 'Add another…'} value={courseInput} onChange={(e) => setCourseInput(e.target.value)} onKeyDown={handleCourseKeyDown} />
+              <div className="ps-autocomplete-wrap">
+                <div className="ps-tags-wrap" onClick={() => courseInputRef.current?.focus()}>
+                  {courses.map((c) => (
+                    <span key={c.id} className="ps-tag">
+                      {c.name}
+                      <button className="ps-tag-remove" onClick={(e) => { e.stopPropagation(); handleRemoveCourse(c.id); }}>×</button>
+                    </span>
+                  ))}
+                  <input
+                    ref={courseInputRef}
+                    className="ps-tags-input"
+                    type="text"
+                    placeholder={courses.length === 0 ? 'Search or type a course…' : 'Add another…'}
+                    value={courseInput}
+                    onChange={handleCourseInputChange}
+                    onKeyDown={handleCourseKeyDown}
+                    onFocus={() => courseInput.trim() && setShowSuggestions(true)}
+                    autoComplete="off"
+                  />
+                </div>
+
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="ps-suggestions" ref={suggestionsRef}>
+                    {filteredSuggestions.map((suggestion, index) => (
+                      <div
+                        key={suggestion}
+                        className={`ps-suggestion-item${index === activeSuggestion ? ' active' : ''}`}
+                        onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(suggestion); }}
+                      >
+                        <span className="ps-suggestion-icon">📚</span>
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <p className="ps-hint">Press Enter or comma to add a course.</p>
+              <p className="ps-hint">Type to search courses, or press Enter to add a custom one.</p>
             </div>
 
+            {/* Topics */}
             <div className="ps-group">
               <label className="ps-label">What topics are you interested in studying?</label>
               <div className="ps-tags-wrap" onClick={() => topicInputRef.current?.focus()}>
@@ -218,7 +380,15 @@ useEffect(() => {
                     <button className="ps-tag-remove" onClick={(e) => { e.stopPropagation(); handleRemoveTopic(t.id); }}>×</button>
                   </span>
                 ))}
-                <input ref={topicInputRef} className="ps-tags-input" type="text" placeholder={topics.length === 0 ? 'Type a topic and press Enter…' : 'Add another…'} value={topicInput} onChange={(e) => setTopicInput(e.target.value)} onKeyDown={handleTopicKeyDown} />
+                <input
+                  ref={topicInputRef}
+                  className="ps-tags-input"
+                  type="text"
+                  placeholder={topics.length === 0 ? 'Type a topic and press Enter…' : 'Add another…'}
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  onKeyDown={handleTopicKeyDown}
+                />
               </div>
               <p className="ps-hint">Press Enter or comma to add a topic.</p>
             </div>
