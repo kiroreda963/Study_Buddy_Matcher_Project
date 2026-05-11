@@ -1,34 +1,34 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation } from '@apollo/client/react';
-import { ApolloProvider } from '@apollo/client/react';
-import { profileClient } from '../clients/apolloClients';
-import { useAuth } from '../context/AuthContext';
-import { GET_PROFILE, UPDATE_PREFERENCES } from '../graphql/operations';
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useQuery, useMutation } from "@apollo/client/react";
+import { ApolloProvider } from "@apollo/client/react";
+import { profileClient } from "../clients/apolloClients";
+import { useAuth } from "../context/AuthContext";
+import { GET_PROFILE, UPDATE_PREFERENCES } from "../graphql/operations";
 
 const STUDY_PACE_OPTIONS = [
-  { value: 'slow', label: 'Slow' },
-  { value: 'moderate', label: 'Moderate' },
-  { value: 'fast', label: 'Fast' },
+  { value: "slow", label: "Slow" },
+  { value: "moderate", label: "Moderate" },
+  { value: "fast", label: "Fast" },
 ];
 
 const STUDY_MODE_OPTIONS = [
-  { value: 'online', label: 'Online' },
-  { value: 'in-person', label: 'In-Person' },
+  { value: "online", label: "Online" },
+  { value: "in-person", label: "In-Person" },
 ];
 
 const GROUP_SIZE_OPTIONS = [
-  { value: 'solo', label: 'Solo (1)' },
-  { value: 'small', label: 'Small (2–4)' },
-  { value: 'large', label: 'Large (5+)' },
+  { value: "solo", label: "Solo (1)" },
+  { value: "small", label: "Small (2–4)" },
+  { value: "large", label: "Large (5+)" },
 ];
 
 const STUDY_STYLE_OPTIONS = [
-  { value: 'notes', label: 'Writing Notes' },
-  { value: 'listening', label: 'Listening' },
-  { value: 'discussion', label: 'Discussing Out Loud' },
-  { value: 'quiet', label: 'Studying Quietly' },
-  { value: 'other', label: 'Other' },
+  { value: "notes", label: "Writing Notes" },
+  { value: "listening", label: "Listening" },
+  { value: "discussion", label: "Discussing Out Loud" },
+  { value: "quiet", label: "Studying Quietly" },
+  { value: "other", label: "Other" },
 ];
 
 function StudyPreferencesInner() {
@@ -36,43 +36,48 @@ function StudyPreferencesInner() {
   const { token, logout } = useAuth();
 
   useEffect(() => {
-    if (!token) navigate('/login');
+    if (!token) navigate("/login");
   }, [token, navigate]);
 
-  const [studyPace, setStudyPace] = useState('');
-  const [studyMode, setStudyMode] = useState('');
-  const [groupSize, setGroupSize] = useState('');
-  const [studyStyle, setStudyStyle] = useState('');
-  const [saveStatus, setSaveStatus] = useState('');
-  const [error, setError] = useState('');
+  const [studyPace, setStudyPace] = useState("");
+  const [studyMode, setStudyMode] = useState("");
+  const [groupSize, setGroupSize] = useState("");
+  const [studyStyle, setStudyStyle] = useState("");
+  const [saveStatus, setSaveStatus] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const { loading: profileLoading, data: profileData, error: profileError } = useQuery(GET_PROFILE, {
-  fetchPolicy: 'network-only',
-});
+  const {
+    loading: profileLoading,
+    data: profileData,
+    error: profileError,
+  } = useQuery(GET_PROFILE, {
+    fetchPolicy: "network-only",
+  });
 
-useEffect(() => {
-  if (profileError?.message?.toLowerCase().includes('unauthorized')) {
-    logout();
-    navigate('/login');
-  }
-}, [profileError]);
+  useEffect(() => {
+    if (profileError?.message?.toLowerCase().includes("unauthorized")) {
+      logout();
+      navigate("/login");
+    }
+  }, [profileError]);
 
-useEffect(() => {
-  if (profileData?.getProfile?.preferences) {
-    const prefs = profileData.getProfile.preferences;
-    setStudyPace(prefs.studyPace || '');
-    setStudyMode(prefs.studyMode || '');
-    setGroupSize(prefs.groupSize || '');
-    setStudyStyle(prefs.studyStyle || '');
-  }
-}, [profileData]);
+  useEffect(() => {
+    if (profileData?.getProfile?.preferences) {
+      const prefs = profileData.getProfile.preferences;
+      setStudyPace(prefs.studyPace || "");
+      setStudyMode(prefs.studyMode || "");
+      setGroupSize(prefs.groupSize || "");
+      setStudyStyle(prefs.studyStyle || "");
+    }
+  }, [profileData]);
 
   const [updatePreferences] = useMutation(UPDATE_PREFERENCES);
 
   const handleSave = async () => {
-    setError('');
-    setSaveStatus('');
+    setError("");
+    setSaveStatus("");
     setSaving(true);
     try {
       await updatePreferences({
@@ -85,10 +90,11 @@ useEffect(() => {
           },
         },
       });
-      setSaveStatus('Study preferences saved!');
-      setTimeout(() => setSaveStatus(''), 3000);
+      setSaveStatus("Study preferences saved!");
+      setSaved(true);
+      setTimeout(() => setSaveStatus(""), 3000);
     } catch (err) {
-      setError('Failed to save preferences: ' + err.message);
+      setError("Failed to save preferences: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -96,7 +102,16 @@ useEffect(() => {
 
   if (profileLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', fontFamily: 'Nunito, sans-serif', color: '#888' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          fontFamily: "Nunito, sans-serif",
+          color: "#888",
+        }}
+      >
         Loading your preferences…
       </div>
     );
@@ -136,53 +151,93 @@ useEffect(() => {
       <div className="sp-page">
         <header className="sp-header">
           <span className="sp-brand">Learn Together</span>
-          <button className="sp-logout" onClick={() => { logout(); navigate('/login'); }}>Log out</button>
+          <button
+            className="sp-logout"
+            onClick={() => {
+              logout();
+              navigate("/login");
+            }}
+          >
+            Log out
+          </button>
         </header>
 
         <main className="sp-body">
           <div className="sp-card">
             <h1 className="sp-title">Study Preferences Setup</h1>
-
             {error && <div className="sp-alert sp-alert-error">{error}</div>}
-            {saveStatus && <div className="sp-alert sp-alert-success">{saveStatus}</div>}
-
+            {saveStatus && (
+              <div className="sp-alert sp-alert-success">{saveStatus}</div>
+            )}
             <div className="sp-group">
               <label className="sp-label">Preferred studying pace</label>
-              <select className="sp-select" value={studyPace} onChange={(e) => setStudyPace(e.target.value)}>
+              <select
+                className="sp-select"
+                value={studyPace}
+                onChange={(e) => setStudyPace(e.target.value)}
+              >
                 <option value="">Select pace --</option>
-                {STUDY_PACE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {STUDY_PACE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
-
             <div className="sp-group">
               <label className="sp-label">Preferred studying mode</label>
-              <select className="sp-select" value={studyMode} onChange={(e) => setStudyMode(e.target.value)}>
+              <select
+                className="sp-select"
+                value={studyMode}
+                onChange={(e) => setStudyMode(e.target.value)}
+              >
                 <option value="">Select mode --</option>
-                {STUDY_MODE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {STUDY_MODE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
-
             <div className="sp-group">
               <label className="sp-label">Preferred group size</label>
-              <select className="sp-select" value={groupSize} onChange={(e) => setGroupSize(e.target.value)}>
+              <select
+                className="sp-select"
+                value={groupSize}
+                onChange={(e) => setGroupSize(e.target.value)}
+              >
                 <option value="">Select group size --</option>
-                {GROUP_SIZE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {GROUP_SIZE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
-
             <div className="sp-group">
               <label className="sp-label">Preferred study style</label>
-              <select className="sp-select" value={studyStyle} onChange={(e) => setStudyStyle(e.target.value)}>
+              <select
+                className="sp-select"
+                value={studyStyle}
+                onChange={(e) => setStudyStyle(e.target.value)}
+              >
                 <option value="">Select study style --</option>
-                {STUDY_STYLE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {STUDY_STYLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
-
             <button className="sp-btn" onClick={handleSave} disabled={saving}>
               {saving && <span className="sp-spinner" />}
-              {saving ? 'Saving…' : 'SAVE'}
+              {saving ? "Saving…" : "SAVE"}
             </button>
-
+            {saved && (
+              <button className="sp-btn" onClick={() => navigate("/dashboard")}>
+                Back to Dashboard
+              </button>
+            )}
             <p className="sp-nav">
               <Link to="/profile-setup">← Back to Profile Setup</Link>
             </p>

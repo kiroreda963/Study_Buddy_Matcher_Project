@@ -1,22 +1,21 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
-
-
-
+import { useNavigate } from "react-router-dom";
 
 function validatePassword(pw) {
- // return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw);
- return true; // Relaxed for testing purposes
+  // return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw);
+  return true; // Relaxed for testing purposes
 }
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-   const [name, setName] = useState("");
+  const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { register, user} = useAuth();
+  const { register, user } = useAuth();
+  const navigate = useNavigate();
 
   const isValid = email.trim() !== "" && validatePassword(password);
 
@@ -26,8 +25,9 @@ export default function RegisterPage() {
     setError("");
     setLoading(true);
     try {
-     await register(email, password, name);
+      await register(email, password, name);
       console.log("Registered user:", user);
+      navigate("/profile-setup");
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -255,10 +255,12 @@ export default function RegisterPage() {
             <form onSubmit={handleSubmit} noValidate>
               {error && <div className="error-box">{error}</div>}
 
-               {/* Email */}
+              {/* Email */}
               <div className="field">
                 <div className="field-header">
-                  <label className="field-label">What should we call you?</label>
+                  <label className="field-label">
+                    What should we call you?
+                  </label>
                 </div>
                 <input
                   type="text"
@@ -294,17 +296,26 @@ export default function RegisterPage() {
                     className="toggle-btn"
                     onClick={() => setShowPassword((v) => !v)}
                   >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       {showPassword ? (
                         <>
-                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-                          <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-                          <line x1="1" y1="1" x2="23" y2="23"/>
+                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+                          <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
                         </>
                       ) : (
                         <>
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                          <circle cx="12" cy="12" r="3"/>
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
                         </>
                       )}
                     </svg>
@@ -319,13 +330,17 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   required
                 />
-                <p className="hint">Use 8 or more characters with a mix of letters, numbers &amp; symbols</p>
+                <p className="hint">
+                  Use 8 or more characters with a mix of letters, numbers &amp;
+                  symbols
+                </p>
               </div>
 
               {/* Terms */}
               <p className="terms">
                 By creating an account, you agree to the{" "}
-                <a href="/terms">Terms of use</a> and <a href="/privacy">Privacy Policy</a>.
+                <a href="/terms">Terms of use</a> and{" "}
+                <a href="/privacy">Privacy Policy</a>.
               </p>
 
               <button
