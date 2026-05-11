@@ -22,6 +22,7 @@ getNotifications: [Notification!]!
 }
 type Mutation {
 markAsRead(notificationId: ID!): Notification!
+deleteNotification(notificationId: ID!): Notification!
 }
 `;
 module.exports = { typeDefs };

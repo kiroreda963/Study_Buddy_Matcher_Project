@@ -3,6 +3,8 @@ import LoginPage from './Pages/loginPage.jsx'
 import RegisterPage from './Pages/registerPage.jsx'
 import  Dashboard  from './Pages/dashboardPage.jsx'
 import MatchDetails from './Pages/matchDetailsPage.jsx'
+import AvailabilityPage from './Pages/AvailabilityPage.jsx'
+import NotificationPage from './Pages/NotificationPage.jsx'
 
 function App() {
   return (
@@ -11,6 +13,8 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/match/:matchId" element={<MatchDetails />} />
+      <Route path="/availability" element={<AvailabilityPage />} />
+      <Route path="/notifications" element={<NotificationPage />} />
     </Routes>
   )
 }
