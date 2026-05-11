@@ -53,29 +53,4 @@ export const notificationClient = new ApolloClient({
   cache: new InMemoryCache(),
 });
 
-const profileHttpLink = new HttpLink({
-  uri: profileApiUrl,
-});
 
-const authLink = setContext((_, { headers }) => {
-  const token = localStorage.getItem("token");
-  return {
-    headers: {
-      ...headers,
-      authorization: token ? `Bearer ${token}` : "",
-    },
-  };
-});
-
-export const profileClient = new ApolloClient({
-  link: authLink.concat(profileHttpLink),
-  cache: new InMemoryCache(),
-  defaultOptions: {
-    query: {
-      fetchPolicy: 'network-only',
-    },
-    watchQuery: {
-      fetchPolicy: 'network-only',
-    },
-  },
-});
