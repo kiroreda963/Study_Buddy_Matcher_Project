@@ -200,11 +200,10 @@ export const GET_PROFILE_PREFERENCES = gql`
 
 
 export const GET_OTHER_USER = gql`
-  query GetOtherUser($userId: ID!) {
-    otherUser(userId: $userId) {
+  query getUserProfile($userId: ID!) {
+    getUserProfile(userId: $userId) {
       id
       name
-      university
     }
   }
 `;

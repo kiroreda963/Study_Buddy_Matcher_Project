@@ -28,7 +28,9 @@ const ParticipantName = ({ userId }) => {
     return <span className="error-name">User {userId.substring(0, 4)}</span>;
 
   return (
-    <span>{data?.otherUser?.name || `User ${userId.substring(0, 4)}`}</span>
+    <span>
+      {data?.getUserProfile?.name || `User ${userId.substring(0, 4)}`}
+    </span>
   );
 };
 

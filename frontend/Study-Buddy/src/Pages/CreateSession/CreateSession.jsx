@@ -23,8 +23,9 @@ const BuddyCard = ({ buddyId, isSelected, onClick }) => {
     skip: !buddyId,
   });
 
-  const buddyName = data?.otherUser?.name || `Buddy ${buddyId.substring(0, 5)}`;
-  const university = data?.otherUser?.university;
+  const buddyName =
+    data?.getUserProfile?.name || `Buddy ${buddyId.substring(0, 5)}`;
+  const university = data?.getUserProfile?.university;
 
   return (
     <div
