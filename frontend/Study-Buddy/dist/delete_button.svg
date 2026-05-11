@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Background rounded square -->
+  <rect x="4" y="4" width="92" height="92" rx="18" ry="18" fill="white" stroke="#E0E0E0" stroke-width="3"/>
+  <!-- Trash lid -->
+  <line x1="30" y1="35" x2="70" y2="35" stroke="#E05252" stroke-width="5" stroke-linecap="round"/>
+  <!-- Lid handle -->
+  <path d="M43 35 L43 28 C43 26.3 44.3 25 46 25 L54 25 C55.7 25 57 26.3 57 28 L57 35" fill="none" stroke="#E05252" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Trash body -->
+  <path d="M34 40 L36.5 70 C36.7 72.2 38.5 74 40.7 74 L59.3 74 C61.5 74 63.3 72.2 63.5 70 L66 40 Z" fill="none" stroke="#E05252" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- Inner lines -->
+  <line x1="44" y1="46" x2="44" y2="68" stroke="#E05252" stroke-width="4" stroke-linecap="round"/>
+  <line x1="56" y1="46" x2="56" y2="68" stroke="#E05252" stroke-width="4" stroke-linecap="round"/>
+</svg>

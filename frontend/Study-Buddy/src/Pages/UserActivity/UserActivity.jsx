@@ -11,7 +11,7 @@ import {
   GET_PROFILE_PREFERENCES,
   UPDATE_PREFERENCES,
   GET_STUDY_SESSIONS,
-} from "../../../../src/graphql/operations";
+} from "../../graphql/operations";
 import SessionCard from "../Shared/SessionCard";
 import "./UserProfile.css";
 import { useAuth } from "../../context/AuthContext";

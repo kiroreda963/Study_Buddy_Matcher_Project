@@ -14,7 +14,7 @@ import { sessionClient, authClient } from "../../clients/apolloClients";
 import {
   GET_STUDY_SESSION_BY_ID,
   GET_OTHER_USER,
-} from "../../../../src/graphql/operations";
+} from "../../graphql/operations";
 import "./SessionDetails.css";
 
 const ParticipantName = ({ userId }) => {

@@ -13,7 +13,7 @@ import {
   GET_CONNECTIONS,
   CREATE_STUDY_SESSION,
   GET_OTHER_USER,
-} from "../../../../src/graphql/operations";
+} from "../../graphql/operations";
 import "./CreateSession.css";
 
 const BuddyCard = ({ buddyId, isSelected, onClick }) => {
