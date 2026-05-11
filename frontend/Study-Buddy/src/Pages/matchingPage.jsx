@@ -6,10 +6,11 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 const HERO_IMAGE_URL = "https://i.ibb.co/nMXjdQgV/Untitled.png";
 
-const GENERATE_MATCHES = gql`
-  mutation GenerateMatches {
-    generateMatches {
+const GET_USER_MATCHES = gql`
+  query GetUserMatches {
+    getUserMatches {
       id
+      userId
       matchedUserId
       score
       reasons
@@ -307,11 +308,11 @@ function MatchCard({ match, onSend, busy }) {
 
       <div className="card-actions">
         <button className="outline-action" type="button">View Profile</button>
-        <button
+          <button
           className="green-action"
           type="button"
           disabled={busy || match.sent}
-          onClick={() => onSend(match.matchedUserId)}
+          onClick={() => onSend(match.buddyId)}
         >
           {match.sent ? "Sent" : "Send Request"}
         </button>
@@ -338,11 +339,16 @@ export default function MatchingPage() {
     setError("");
 
     try {
-      const { data } = await matchingClient.mutate({ mutation: GENERATE_MATCHES });
-      const nextMatches = data?.generateMatches || [];
+      const { data } = await matchingClient.query({
+        query: GET_USER_MATCHES,
+        fetchPolicy: "network-only",
+      });
+      const nextMatches = data?.getUserMatches || [];
       setMatches(nextMatches);
 
-      const ids = nextMatches.map((match) => match.matchedUserId).filter(Boolean);
+      const ids = nextMatches
+        .map((match) => (match.userId === currentUserId ? match.matchedUserId : match.userId))
+        .filter(Boolean);
       const loadedProfiles = {};
       await Promise.all(
         ids.map(async (id) => {
@@ -365,7 +371,7 @@ export default function MatchingPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -378,12 +384,14 @@ export default function MatchingPage() {
   const decoratedMatches = useMemo(
     () =>
       matches.filter((match) => match.score >= 30).map((match, index) => {
-        const profile = profiles[match.matchedUserId] || fallbackProfile(match.matchedUserId);
+        const buddyId = match.userId === currentUserId ? match.matchedUserId : match.userId;
+        const profile = profiles[buddyId] || fallbackProfile(buddyId);
         const reasons = match.reasons || [];
         const tags = inferTags(reasons);
         const field = inferField(profile, reasons);
         return {
           ...match,
+          buddyId,
           profile,
           field,
           fieldKey: normalizeText(field).split(" ")[0],
@@ -392,11 +400,11 @@ export default function MatchingPage() {
           meetingLabel: reasons.some((reason) => normalizeText(reason).includes("availability")) ? "Online" : "Flexible",
           availabilityLabel: reasons.some((reason) => normalizeText(reason).includes("availability")) ? "Tue, Thu 3-7 PM" : "Wed, Fri 3-7 PM",
           tags,
-          sent: sentIds.has(match.matchedUserId),
+          sent: sentIds.has(buddyId),
           order: index,
         };
       }),
-    [matches, profiles, sentIds],
+    [currentUserId, matches, profiles, sentIds],
   );
 
   const visibleMatches = useMemo(() => {
@@ -711,7 +719,7 @@ export default function MatchingPage() {
                       <MatchCard
                         key={match.id}
                         match={match}
-                        busy={busyId === match.matchedUserId}
+                        busy={busyId === match.buddyId}
                         onSend={handleSendRequest}
                       />
                     ))}
