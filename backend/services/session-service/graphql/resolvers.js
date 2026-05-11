@@ -94,6 +94,19 @@ const resolvers = {
         sessionId,
       );
     },
+    acceptInvitation: async (_, { id }, context) => {
+      if (!context.user) {
+        throw new Error("Unauthorized");
+      }
+      return await sessionController.acceptInvitation(id);
+    },
+
+    rejectInvitation: async (_, { id }, context) => {
+      if (!context.user) {
+        throw new Error("Unauthorized");
+      }
+      return await sessionController.rejectInvitation(id);
+    },
   },
 };
 

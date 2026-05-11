@@ -13,6 +13,7 @@ import CreateSession from "./Pages/CreateSession/CreateSession.jsx";
 import StudySessions from "./Pages/StudySessions/StudySessions.jsx";
 import SessionDetails from "./Pages/StudySessions/SessionDetails.jsx";
 import UserActivity from "./Pages/UserActivity/UserActivity.jsx";
+import EditStudySession from "./Pages/CreateSession/EditStudySession.jsx";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
       <Route path="/create-session" element={<CreateSession />} />
       <Route path="/study-sessions" element={<StudySessions />} />
       <Route path="/session/:id" element={<SessionDetails />} />
+      <Route path="/edit-session/:id" element={<EditStudySession />} />
       <Route path="/user-activity" element={<UserActivity />} />
     </Routes>
   );

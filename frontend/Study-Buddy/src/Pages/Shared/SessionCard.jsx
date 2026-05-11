@@ -39,7 +39,12 @@ const SessionCard = ({ session, isCreator, isUpcoming, onLeave, formatDate, form
           View Details
         </button>
         {isUpcoming && isCreator && (
-          <button className="secondary-btn">Edit</button>
+          <button 
+            className="secondary-btn"
+            onClick={() => navigate(`/edit-session/${session.id}`)}
+          >
+            Edit
+          </button>
         )}
         {isUpcoming && !isCreator && (
           <button className="secondary-btn" onClick={onLeave}>Leave</button>

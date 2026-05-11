@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { authClient, matchingClient } from "../clients/apolloClients.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -229,6 +230,7 @@ export default function BuddyConnectionsPage() {
   const [busyId, setBusyId] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [findQuery, setFindQuery] = useState("");
+  const navigate = useNavigate();
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -860,7 +862,13 @@ export default function BuddyConnectionsPage() {
                         </div>
                         <div className="row-actions">
                           <div className="button-pair">
-                            <button className="small-btn primary" type="button">
+                            <button
+                              className="small-btn primary"
+                              type="button"
+                              onClick={() => {
+                                navigate(`/match/${buddy.profile.id}`);
+                              }}
+                            >
                               View Profile
                             </button>
                           </div>

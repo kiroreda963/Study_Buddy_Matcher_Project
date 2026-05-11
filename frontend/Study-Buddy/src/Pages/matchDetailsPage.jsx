@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { gql } from "@apollo/client";
+import { useMutation } from "@apollo/client/react";
 import { useAuth } from "../context/AuthContext";
 import {
   authClient,
@@ -213,6 +214,10 @@ export default function MatchDetails() {
   const [buddySending, setBuddySending] = useState(false);
   const [buddySent, setBuddySent] = useState(false);
 
+  const [sendBuddyRequestMutation] = useMutation(SEND_BUDDY_REQUEST, {
+    client: matchingClient,
+  });
+
   const myUserId = useMemo(() => {
     if (user?.id) return String(user.id);
     try {
@@ -291,8 +296,7 @@ export default function MatchDetails() {
         setPeerProfile(peerRes.data?.getProfileById ?? null);
         setAuthPeer(authRes.data?.getUserProfile ?? null);
         setMyProfile(myRes.data?.getProfile ?? null);
-        const slots =
-          myMatchRes.data?.getMatchProfile?.availabilitySlots ?? [];
+        const slots = myMatchRes.data?.getMatchProfile?.availabilitySlots ?? [];
         setMyMatchSlots(slots);
         const availability = myMatchRes.data?.getAvailabilityByUser ?? [];
         setMyAvailability(availability);
@@ -337,8 +341,7 @@ export default function MatchDetails() {
 
   const subtitleParts = [];
   const uni = peerProfile?.university || authPeer?.university || "";
-  const year =
-    peerProfile?.academicYear || authPeer?.academic_year || "";
+  const year = peerProfile?.academicYear || authPeer?.academic_year || "";
   if (uni) subtitleParts.push(uni);
   if (year) subtitleParts.push(year);
   const subtitle =
@@ -366,9 +369,7 @@ export default function MatchDetails() {
   ].filter((p) => p.value);
 
   const coursesToShow =
-    sharedCourses.length > 0
-      ? sharedCourses
-      : peerProfile?.courses ?? [];
+    sharedCourses.length > 0 ? sharedCourses : (peerProfile?.courses ?? []);
   const coursesTitle =
     sharedCourses.length > 0 ? "Shared Courses" : "Their Courses";
 
@@ -393,8 +394,7 @@ export default function MatchDetails() {
     if (!peerId || buddySent) return;
     setBuddySending(true);
     try {
-      await matchingClient.mutate({
-        mutation: SEND_BUDDY_REQUEST,
+      await sendBuddyRequestMutation({
         variables: { receiverId: peerId },
       });
       setBuddySent(true);
@@ -750,7 +750,9 @@ export default function MatchDetails() {
             </div>
 
             <div className="grid">
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              >
                 <div className="card">
                   <div className="card-title">{coursesTitle}</div>
                   {coursesToShow.length === 0 ? (
@@ -911,8 +913,9 @@ export default function MatchDetails() {
                 ) && (
                   <p className="muted">
                     Your match score includes overlapping availability. The
-                    schedule below is your availability from the matching service;
-                    your buddy’s slots are not exposed on the current API.
+                    schedule below is your availability from the matching
+                    service; your buddy’s slots are not exposed on the current
+                    API.
                   </p>
                 )}
               </div>
