@@ -1,29 +1,35 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@apollo/client/react';
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Users, 
-  ArrowLeft, 
-  Mail, 
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@apollo/client/react";
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  ArrowLeft,
+  Mail,
   User,
-  Info
-} from 'lucide-react';
-import { sessionClient, authClient } from '../../clients/apolloClients';
-import { GET_STUDY_SESSION_BY_ID, GET_OTHER_USER } from '../../graphql/operations';
-import './SessionDetails.css';
+  Info,
+} from "lucide-react";
+import { sessionClient, authClient } from "../../clients/apolloClients";
+import {
+  GET_STUDY_SESSION_BY_ID,
+  GET_OTHER_USER,
+} from "../../../../src/graphql/operations";
+import "./SessionDetails.css";
 
 const ParticipantName = ({ userId }) => {
   const { data, loading, error } = useQuery(GET_OTHER_USER, {
     client: authClient,
-    variables: { userId }
+    variables: { userId },
   });
 
   if (loading) return <span className="loading-name">Loading...</span>;
-  if (error) return <span className="error-name">User {userId.substring(0, 4)}</span>;
-  
-  return <span>{data?.otherUser?.name || `User ${userId.substring(0, 4)}`}</span>;
+  if (error)
+    return <span className="error-name">User {userId.substring(0, 4)}</span>;
+
+  return (
+    <span>{data?.otherUser?.name || `User ${userId.substring(0, 4)}`}</span>
+  );
 };
 
 const SessionDetails = () => {
@@ -33,30 +39,52 @@ const SessionDetails = () => {
   const { data, loading, error } = useQuery(GET_STUDY_SESSION_BY_ID, {
     client: sessionClient,
     variables: { id },
-    fetchPolicy: 'network-only'
+    fetchPolicy: "network-only",
   });
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return "N/A";
     const timestamp = Number(dateStr);
-    const date = !isNaN(timestamp) ? new Date(timestamp) : new Date(dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr);
-    if (isNaN(date.getTime())) return 'Invalid Date';
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const date = !isNaN(timestamp)
+      ? new Date(timestamp)
+      : new Date(dateStr.includes(" ") ? dateStr.replace(" ", "T") : dateStr);
+    if (isNaN(date.getTime())) return "Invalid Date";
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   const formatTime = (dateStr) => {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return "N/A";
     const timestamp = Number(dateStr);
-    const date = !isNaN(timestamp) ? new Date(timestamp) : new Date(dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr);
-    if (isNaN(date.getTime())) return 'Invalid Time';
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const date = !isNaN(timestamp)
+      ? new Date(timestamp)
+      : new Date(dateStr.includes(" ") ? dateStr.replace(" ", "T") : dateStr);
+    if (isNaN(date.getTime())) return "Invalid Time";
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
-  if (loading) return <div className="session-details-container">Loading session details...</div>;
-  if (error) return <div className="session-details-container">Error: {error.message}</div>;
-  
+  if (loading)
+    return (
+      <div className="session-details-container">
+        Loading session details...
+      </div>
+    );
+  if (error)
+    return (
+      <div className="session-details-container">Error: {error.message}</div>
+    );
+
   const session = data?.studySession;
-  if (!session) return <div className="session-details-container">Session not found.</div>;
+  if (!session)
+    return <div className="session-details-container">Session not found.</div>;
 
   return (
     <div className="session-details-container">
@@ -76,7 +104,9 @@ const SessionDetails = () => {
           <label>Date & Time</label>
           <div className="value">
             <Calendar size={20} />
-            <span>{formatDate(session.date)} at {formatTime(session.date)}</span>
+            <span>
+              {formatDate(session.date)} at {formatTime(session.date)}
+            </span>
           </div>
         </div>
 
@@ -92,7 +122,11 @@ const SessionDetails = () => {
           <label>Location / Type</label>
           <div className="value">
             <MapPin size={20} />
-            <span>{session.sessionType === 'ONLINE' ? 'Online Session' : 'In-Person Session'}</span>
+            <span>
+              {session.sessionType === "ONLINE"
+                ? "Online Session"
+                : "In-Person Session"}
+            </span>
           </div>
         </div>
 
@@ -101,7 +135,10 @@ const SessionDetails = () => {
           <div className="contact-info-list">
             {session.contactInfo.map((info, index) => (
               <span key={index} className="contact-badge">
-                <Mail size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                <Mail
+                  size={14}
+                  style={{ marginRight: "4px", verticalAlign: "middle" }}
+                />
                 {info}
               </span>
             ))}
@@ -111,7 +148,10 @@ const SessionDetails = () => {
 
       <div className="participants-list">
         <h2>
-          <Users size={24} style={{ marginRight: '8px', verticalAlign: 'bottom' }} />
+          <Users
+            size={24}
+            style={{ marginRight: "8px", verticalAlign: "bottom" }}
+          />
           Participants ({session.participants.length})
         </h2>
         <div className="participants-grid">

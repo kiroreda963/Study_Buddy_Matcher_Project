@@ -1,16 +1,26 @@
-import { useState } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
-import { ChevronDown, User, Check } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { authClient, sessionClient, profileClient, matchingClient } from '../../clients/apolloClients';
-import { GET_TOPICS, GET_CONNECTIONS, CREATE_STUDY_SESSION, GET_OTHER_USER } from '../../graphql/operations';
-import './CreateSession.css';
+import { useState } from "react";
+import { useQuery, useMutation } from "@apollo/client/react";
+import { ChevronDown, User, Check } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import {
+  authClient,
+  sessionClient,
+  profileClient,
+  matchingClient,
+} from "../../clients/apolloClients";
+import {
+  GET_TOPICS,
+  GET_CONNECTIONS,
+  CREATE_STUDY_SESSION,
+  GET_OTHER_USER,
+} from "../../../../src/graphql/operations";
+import "./CreateSession.css";
 
 const BuddyCard = ({ buddyId, isSelected, onClick }) => {
   const { data, loading } = useQuery(GET_OTHER_USER, {
     client: authClient,
     variables: { userId: buddyId },
-    skip: !buddyId
+    skip: !buddyId,
   });
 
   const buddyName = data?.otherUser?.name || `Buddy ${buddyId.substring(0, 5)}`;
@@ -18,7 +28,7 @@ const BuddyCard = ({ buddyId, isSelected, onClick }) => {
 
   return (
     <div
-      className={`buddy-card ${isSelected ? 'selected' : ''}`}
+      className={`buddy-card ${isSelected ? "selected" : ""}`}
       onClick={onClick}
     >
       <div className="buddy-status">
@@ -28,7 +38,7 @@ const BuddyCard = ({ buddyId, isSelected, onClick }) => {
         <User size={20} />
       </div>
       <div className="buddy-info">
-        <div className="buddy-name">{loading ? 'Loading...' : buddyName}</div>
+        <div className="buddy-name">{loading ? "Loading..." : buddyName}</div>
         {university && <div className="buddy-university">{university}</div>}
       </div>
     </div>
@@ -37,50 +47,57 @@ const BuddyCard = ({ buddyId, isSelected, onClick }) => {
 
 const CreateSession = () => {
   const [formData, setFormData] = useState({
-    topic: '',
-    date: '',
-    time: '',
-    duration: '',
-    sessionType: 'ONLINE',
+    topic: "",
+    date: "",
+    time: "",
+    duration: "",
+    sessionType: "ONLINE",
     participants: [],
-    contactInfo: ''
+    contactInfo: "",
   });
-
 
   // Queries
-  const { data: profileData, loading: profileLoading } = useQuery(GET_TOPICS, { client: profileClient });
-  const { data: matchingData, loading: matchingLoading } = useQuery(GET_CONNECTIONS, { client: matchingClient });
+  const { data: profileData, loading: profileLoading } = useQuery(GET_TOPICS, {
+    client: profileClient,
+  });
+  const { data: matchingData, loading: matchingLoading } = useQuery(
+    GET_CONNECTIONS,
+    { client: matchingClient },
+  );
 
   // Mutation
-  const [createSession, { loading: creating }] = useMutation(CREATE_STUDY_SESSION, {
-    client: sessionClient,
-    onCompleted: () => {
-      alert('Study session created successfully!');
-      setFormData({
-        topic: '',
-        date: '',
-        time: '',
-        duration: '',
-        sessionType: 'ONLINE',
-        participants: [],
-        contactInfo: ''
-      });
+  const [createSession, { loading: creating }] = useMutation(
+    CREATE_STUDY_SESSION,
+    {
+      client: sessionClient,
+      onCompleted: () => {
+        alert("Study session created successfully!");
+        setFormData({
+          topic: "",
+          date: "",
+          time: "",
+          duration: "",
+          sessionType: "ONLINE",
+          participants: [],
+          contactInfo: "",
+        });
+      },
+      onError: (error) => {
+        console.error("Error creating session:", error);
+        alert("Failed to create study session: " + error.message);
+      },
     },
-    onError: (error) => {
-      console.error('Error creating session:', error);
-      alert('Failed to create study session: ' + error.message);
-    }
-  });
+  );
 
   const { user } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const toggleParticipant = (buddyId) => {
-    setFormData(prev => {
+    setFormData((prev) => {
       const participants = [...prev.participants];
       const index = participants.indexOf(buddyId);
       if (index === -1) {
@@ -97,10 +114,12 @@ const CreateSession = () => {
 
     // Combine date and time and convert to ISO string
     const localDate = new Date(`${formData.date}T${formData.time}:00`);
-    const combinedDate = isNaN(localDate.getTime()) ? null : localDate.toISOString();
+    const combinedDate = isNaN(localDate.getTime())
+      ? null
+      : localDate.toISOString();
 
     if (!combinedDate) {
-      alert('Please enter a valid date and time.');
+      alert("Please enter a valid date and time.");
       return;
     }
 
@@ -111,8 +130,8 @@ const CreateSession = () => {
         duration: parseInt(formData.duration),
         sessionType: formData.sessionType,
         contactInfo: [formData.contactInfo],
-        participants: formData.participants
-      }
+        participants: formData.participants,
+      },
     });
   };
 
@@ -135,9 +154,13 @@ const CreateSession = () => {
                 onChange={handleChange}
                 required
               >
-                <option value="" disabled>Select a topic...</option>
-                {profileData?.getProfile?.topics.map(topic => (
-                  <option key={topic.id} value={topic.name}>{topic.name}</option>
+                <option value="" disabled>
+                  Select a topic...
+                </option>
+                {profileData?.getProfile?.topics.map((topic) => (
+                  <option key={topic.id} value={topic.name}>
+                    {topic.name}
+                  </option>
                 ))}
                 {profileLoading && <option>Loading topics...</option>}
               </select>
@@ -224,13 +247,14 @@ const CreateSession = () => {
           <div className="form-group">
             <label>Study Buddies:</label>
             <div className="buddy-selection-grid">
-              {matchingData?.getConnections.map(conn => {
+              {matchingData?.getConnections.map((conn) => {
                 // Find the buddy ID (the one that isn't the current user)
-                const buddyId = conn.userId1 === user?.id ? conn.userId2 : conn.userId1;
+                const buddyId =
+                  conn.userId1 === user?.id ? conn.userId2 : conn.userId1;
                 const isSelected = formData.participants.includes(buddyId);
-                
+
                 return (
-                  <BuddyCard 
+                  <BuddyCard
                     key={conn.id}
                     buddyId={buddyId}
                     isSelected={isSelected}
@@ -238,20 +262,22 @@ const CreateSession = () => {
                   />
                 );
               })}
-              {matchingLoading && <div className="loading-text">Loading buddies...</div>}
+              {matchingLoading && (
+                <div className="loading-text">Loading buddies...</div>
+              )}
               {matchingData?.getConnections.length === 0 && (
-                <div className="helper-text">No study buddies found. Find some buddies first!</div>
+                <div className="helper-text">
+                  No study buddies found. Find some buddies first!
+                </div>
               )}
             </div>
-            <div className="helper-text">Select one or more buddies to invite to this session</div>
+            <div className="helper-text">
+              Select one or more buddies to invite to this session
+            </div>
           </div>
 
-          <button
-            type="submit"
-            className="submit-btn"
-            disabled={creating}
-          >
-            {creating ? 'Creating...' : 'Create Session'}
+          <button type="submit" className="submit-btn" disabled={creating}>
+            {creating ? "Creating..." : "Create Session"}
           </button>
         </form>
       </div>

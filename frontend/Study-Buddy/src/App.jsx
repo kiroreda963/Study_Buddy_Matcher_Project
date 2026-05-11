@@ -1,14 +1,18 @@
-import { Routes, Route } from 'react-router-dom'
-import LoginPage from './Pages/loginPage.jsx'
-import RegisterPage from './Pages/registerPage.jsx'
-import  Dashboard  from './Pages/dashboardPage.jsx'
-import MatchDetails from './Pages/matchDetailsPage.jsx'
-import AvailabilityPage from './Pages/AvailabilityPage.jsx'
-import NotificationPage from './Pages/NotificationPage.jsx'
-import BuddyConnectionsPage from './Pages/buddyConnectionsPage.jsx'
-import MatchingPage from './Pages/matchingPage.jsx'
-import ProfileSetupPage from './Pages/ProfileSetupPage.jsx'
-import StudyPreferencesPage from './Pages/StudyPreferencesPage.jsx'
+import { Routes, Route } from "react-router-dom";
+import LoginPage from "./Pages/loginPage.jsx";
+import RegisterPage from "./Pages/registerPage.jsx";
+import Dashboard from "./Pages/dashboardPage.jsx";
+import MatchDetails from "./Pages/matchDetailsPage.jsx";
+import AvailabilityPage from "./Pages/AvailabilityPage.jsx";
+import NotificationPage from "./Pages/NotificationPage.jsx";
+import BuddyConnectionsPage from "./Pages/buddyConnectionsPage.jsx";
+import MatchingPage from "./Pages/matchingPage.jsx";
+import ProfileSetupPage from "./Pages/ProfileSetupPage.jsx";
+import StudyPreferencesPage from "./Pages/StudyPreferencesPage.jsx";
+import CreateSession from "./Pages/CreateSession/CreateSession.jsx";
+import StudySessions from "./Pages/StudySessions/StudySessions.jsx";
+import SessionDetails from "./Pages/StudySessions/SessionDetails.jsx";
+import UserActivity from "./Pages/UserActivity/UserActivity.jsx";
 
 function App() {
   return (
@@ -23,8 +27,12 @@ function App() {
       <Route path="/connections" element={<BuddyConnectionsPage />} />
       <Route path="/profile-setup" element={<ProfileSetupPage />} />
       <Route path="/study-preferences" element={<StudyPreferencesPage />} />
+      <Route path="/create-session" element={<CreateSession />} />
+      <Route path="/study-sessions" element={<StudySessions />} />
+      <Route path="/session/:id" element={<SessionDetails />} />
+      <Route path="/user-activity" element={<UserActivity />} />
     </Routes>
-  )
+  );
 }
 
-export default App
+export default App;
