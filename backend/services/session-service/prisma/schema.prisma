@@ -8,7 +8,7 @@ datasource db {
 
 model StudySession {
   id           String       @id @default(uuid())
-  authorId     String       
+  authorId     String
   topic        String
   date         DateTime
   duration     Int

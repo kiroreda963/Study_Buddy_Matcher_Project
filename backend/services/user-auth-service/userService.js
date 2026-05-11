@@ -136,6 +136,7 @@ module.exports = {
   getUserProfile,
   registerUser,
   loginUser,
+  getUserProfile,
   updateUserProfile,
   addAdditionalUserInfo,
 };
