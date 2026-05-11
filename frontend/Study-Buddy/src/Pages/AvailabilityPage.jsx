@@ -540,6 +540,22 @@ export default function App() {
                 {saveMessage}
               </div>
             )}
+            {mutationError && (
+              <div
+                style={{
+                  border: "1px solid #fecaca",
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  padding: "10px 12px",
+                }}
+                role="alert"
+              >
+                {mutationError}
+              </div>
+            )}
 
             {/* Add Time Slot Button */}
             <button onClick={() => { setMutationError(""); setShowAddModal(true); }} style={{

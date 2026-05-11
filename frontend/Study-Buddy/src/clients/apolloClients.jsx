@@ -32,7 +32,7 @@ export const profileClient = new ApolloClient({
   cache: new InMemoryCache(),
 });
 
-const matchingApiUrl = import.meta.env.VITE_MATCHING_API_URI;
+const matchingApiUrl = import.meta.env.VITE_MATCHING_API_URI || "http://localhost:3005/";
 const matchingHttpLink = new HttpLink({ uri: matchingApiUrl });
 export const matchingClient = new ApolloClient({
   link: authLink.concat(matchingHttpLink),

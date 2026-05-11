@@ -1,7 +1,7 @@
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { useEffect, useMemo, useState } from "react";
-import { notificationClient } from "../clients/apolloClients.jsx";
+import { matchingClient, notificationClient } from "../clients/apolloClients.jsx";
 
 const GREEN = "#3fcf8e";
 const LIGHT_BG = "#f0faf5";
@@ -27,6 +27,34 @@ const MARK_AS_READ = gql`
     markAsRead(notificationId: $notificationId) {
       id
       isRead
+    }
+  }
+`;
+
+const GET_BUDDY_REQUESTS = gql`
+  query GetBuddyRequests {
+    getBuddyRequests {
+      id
+      senderId
+      status
+    }
+  }
+`;
+
+const ACCEPT_BUDDY_REQUEST = gql`
+  mutation AcceptBuddyRequest($requestId: ID!) {
+    acceptBuddyRequest(requestId: $requestId) {
+      id
+      status
+    }
+  }
+`;
+
+const REJECT_BUDDY_REQUEST = gql`
+  mutation RejectBuddyRequest($requestId: ID!) {
+    rejectBuddyRequest(requestId: $requestId) {
+      id
+      status
     }
   }
 `;
@@ -106,6 +134,8 @@ export default function NotificationPage() {
   const [search, setSearch] = useState("");
   const [activeNav, setActiveNav] = useState("Study Sessions");
   const [mutationError, setMutationError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [buddyActionLoading, setBuddyActionLoading] = useState(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [locallyReadIds, setLocallyReadIds] = useState(() => loadLocallyReadIds());
   useEffect(() => {
@@ -117,6 +147,22 @@ export default function NotificationPage() {
     fetchPolicy: "cache-and-network",
   });
   const [markAsRead, markState] = useMutation(MARK_AS_READ, { client: notificationClient });
+  const {
+    data: buddyData,
+    refetch: refetchBuddyRequests,
+    error: buddyQueryError,
+  } = useQuery(GET_BUDDY_REQUESTS, {
+    client: matchingClient,
+    fetchPolicy: "cache-and-network",
+  });
+  const [acceptBuddyRequest] = useMutation(ACCEPT_BUDDY_REQUEST, { client: matchingClient });
+  const [rejectBuddyRequest] = useMutation(REJECT_BUDDY_REQUEST, { client: matchingClient });
+
+  const pendingBuddyRequests = buddyData?.getBuddyRequests ?? [];
+  const pendingBuddySenderIds = useMemo(
+    () => new Set(pendingBuddyRequests.map((req) => String(req.senderId))),
+    [pendingBuddyRequests],
+  );
 
   const notifications = useMemo(() => {
     const rows = data?.getNotifications ?? [];
@@ -127,19 +173,31 @@ export default function NotificationPage() {
       time: formatNotificationTime(n.createdAt, nowTick),
       read: Boolean(n.isRead) || locallyReadIds.has(normalizeNotificationId(n.id)),
       rawType: n.type,
+      senderId: n.senderId ?? null,
     }));
   }, [data, nowTick, locallyReadIds]);
+  const visibleNotifications = useMemo(
+    () =>
+      notifications.filter((n) => {
+        const isBuddy = normalizeBuddyNotificationType(n.rawType) === "BUDDY_REQUEST_SENT";
+        if (!isBuddy) return true;
+        if (!n.senderId) return false;
+        return pendingBuddySenderIds.has(String(n.senderId));
+      }),
+    [notifications, pendingBuddySenderIds],
+  );
 
   useEffect(() => {
     saveLocallyReadIds(locallyReadIds);
   }, [locallyReadIds]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const readCount = notifications.filter(n => n.read).length;
+  const unreadCount = visibleNotifications.filter(n => !n.read).length;
+  const readCount = visibleNotifications.filter(n => n.read).length;
 
   async function markAllRead() {
     setMutationError("");
-    const unread = notifications.filter((n) => !n.read);
+    setActionMessage("");
+    const unread = visibleNotifications.filter((n) => !n.read);
     if (unread.length === 0) return;
 
     unread.forEach((n) => setNotificationReadInCache(notificationClient, n.id));
@@ -171,6 +229,7 @@ export default function NotificationPage() {
     if (!notificationId) return;
 
     setMutationError("");
+    setActionMessage("");
     setNotificationReadInCache(notificationClient, notificationId);
     setLocallyReadIds((prev) => {
       const next = new Set(prev);
@@ -187,7 +246,51 @@ export default function NotificationPage() {
     }
   }
 
-  const filtered = notifications.filter(n => {
+  async function handleBuddyRequestAction(notification, buddyAction) {
+    setMutationError("");
+    setActionMessage("");
+    if (!notification?.senderId) {
+      setMutationError("Missing sender info for this request. It may be an older notification.");
+      return;
+    }
+    let buddyList = pendingBuddyRequests;
+    try {
+      const { data: freshBuddy } = await refetchBuddyRequests();
+      buddyList = freshBuddy?.getBuddyRequests ?? buddyList;
+    } catch {
+      /* refetch failure — try cached list below */
+    }
+    const pending =
+      buddyList.find((r) => String(r.senderId) === String(notification.senderId)) ?? null;
+    if (!pending) {
+      setMutationError(
+        buddyQueryError
+          ? `Could not load buddy requests (${getMutationErrorMessage(buddyQueryError, "matching service unreachable")}). Check that VITE_MATCHING_API_URI matches your matching service URL.`
+          : "That buddy request is no longer pending. Try refreshing.",
+      );
+      return;
+    }
+
+    setBuddyActionLoading(buddyAction);
+    try {
+      const mut = buddyAction === "accept" ? acceptBuddyRequest : rejectBuddyRequest;
+      await mut({ variables: { requestId: pending.id } });
+      await refetchBuddyRequests();
+      await refetch();
+      setActionMessage(
+        buddyAction === "accept" ? "Buddy request accepted." : "Buddy request declined.",
+      );
+    } catch (err) {
+      const fallback =
+        buddyAction === "accept" ? "Could not accept buddy request." : "Could not decline buddy request.";
+      setMutationError(getMutationErrorMessage(err, fallback));
+      await refetchBuddyRequests().catch(() => {});
+    } finally {
+      setBuddyActionLoading(null);
+    }
+  }
+
+  const filtered = visibleNotifications.filter(n => {
     const matchesTab = tab === "all" || (tab === "unread" && !n.read) || (tab === "read" && n.read);
     const matchesSearch = n.title.toLowerCase().includes(search.toLowerCase()) ||
       n.description.toLowerCase().includes(search.toLowerCase());
@@ -295,6 +398,20 @@ export default function NotificationPage() {
             <div style={{ color: TEXT_MUTED, fontSize: 13 }}>{String(error.message || error)}</div>
           </div>
         )}
+        {buddyQueryError && (
+          <div style={{
+            background: "#fff",
+            border: "1.5px solid #fde68a",
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 16
+          }}>
+            <div style={{ fontWeight: 800, color: "#92400e", marginBottom: 4 }}>Matching service</div>
+            <div style={{ color: "#78350f", fontSize: 13 }}>
+              {getMutationErrorMessage(buddyQueryError, "Unable to reach the matching GraphQL API. Set VITE_MATCHING_API_URI in .env if it is not running at the default URL.")}
+            </div>
+          </div>
+        )}
         {mutationError && (
           <div style={{
             background: "#fff",
@@ -305,6 +422,17 @@ export default function NotificationPage() {
           }}>
             <div style={{ fontWeight: 800, color: "#b91c1c", marginBottom: 4 }}>Action failed</div>
             <div style={{ color: "#b91c1c", fontSize: 13 }}>{mutationError}</div>
+          </div>
+        )}
+        {actionMessage && (
+          <div style={{
+            background: "#fff",
+            border: "1.5px solid #86efac",
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 16
+          }}>
+            <div style={{ color: "#166534", fontSize: 13 }}>{actionMessage}</div>
           </div>
         )}
 
@@ -377,7 +505,7 @@ export default function NotificationPage() {
             borderRadius: 30, padding: 4, gap: 2
           }}>
             {[
-              { key: "all", label: `All (${notifications.length})` },
+              { key: "all", label: `All (${visibleNotifications.length})` },
               { key: "unread", label: `Unread (${unreadCount})` },
               { key: "read", label: `Read (${readCount})` },
             ].map(t => (
@@ -400,26 +528,33 @@ export default function NotificationPage() {
             </div>
           )}
           {filtered.map(notif => (
-            <div key={notif.id} onClick={() => notif.read || markRead(notif.id)} style={{
+            <div key={notif.id} style={{
               background: notif.read ? "#fff" : "#f0f8ff",
               border: `1.5px solid ${notif.read ? GRAY_BORDER : "#ddeeff"}`,
               borderRadius: 14, padding: "20px 24px",
-              cursor: "pointer", transition: "box-shadow 0.15s",
+              transition: "box-shadow 0.15s",
               position: "relative"
             }}
               onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"}
               onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
             >
-              {/* Unread dot */}
-              {!notif.read && (
-                <div style={{
-                  position: "absolute", top: 20, right: 20,
-                  width: 10, height: 10, borderRadius: "50%", background: "#4a90d9"
-                }} />
-              )}
-
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-                <div style={{ flex: 1 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!notif.read) markRead(notif.id);
+                  }}
+                  style={{
+                    flex: 1,
+                    textAlign: "left",
+                    cursor: notif.read ? "default" : "pointer",
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                    color: "inherit",
+                  }}
+                >
                   <div style={{ fontWeight: 800, fontSize: 15, color: TEXT_MAIN, marginBottom: 6 }}>
                     {notif.title}
                   </div>
@@ -427,36 +562,98 @@ export default function NotificationPage() {
                     {notif.description}
                   </div>
                   <div style={{ fontSize: 12, color: "#aaa" }}>{notif.time}</div>
-                </div>
+                </button>
 
-                {/* Type-specific actions */}
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-                  {getNotificationActions(notif.rawType).map((action) => (
-                    <button
-                      key={action.label}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        if (!notif.read) {
-                          await markRead(notif.id);
-                        }
-                      }}
-                      style={{
-                        padding: "8px 18px",
-                        borderRadius: 20,
-                        border: action.variant === "secondary" ? `1.5px solid ${GRAY_BORDER}` : "none",
-                        background: action.variant === "secondary" ? "#fff" : GREEN,
-                        color: action.variant === "secondary" ? TEXT_MAIN : "#fff",
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: "pointer",
-                        transition: "opacity 0.15s",
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
-                      onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
+                {/* Type-specific actions — outside mark-as-read clickable area */}
+                <div style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexShrink: 0,
+                  position: "relative",
+                  zIndex: 2,
+                }}>
+                  {/* Unread dot: top-right of action buttons when present */}
+                  {!notif.read &&
+                    getNotificationActions(normalizeBuddyNotificationType(notif.rawType)).length > 0 && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: -6,
+                          right: -6,
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          background: "#4a90d9",
+                          boxShadow: "0 0 0 2px #fff",
+                        }}
+                      />
+                    )}
+
+                  {/* Unread dot fallback: top-right of card when no actions */}
+                  {!notif.read &&
+                    getNotificationActions(normalizeBuddyNotificationType(notif.rawType)).length === 0 && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: -6,
+                          right: -6,
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          background: "#4a90d9",
+                          boxShadow: "0 0 0 2px #fff",
+                        }}
+                      />
+                    )}
+                  {getNotificationActions(normalizeBuddyNotificationType(notif.rawType)).map((action) => {
+                    const buddyBusy = Boolean(action.buddyAction && buddyActionLoading);
+                    return (
+                      <button
+                        key={action.label}
+                        type="button"
+                        disabled={buddyBusy}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (action.buddyAction) {
+                            await handleBuddyRequestAction(notif, action.buddyAction);
+                            return;
+                          }
+                          if (!notif.read) {
+                            await markRead(notif.id);
+                          }
+                        }}
+                        style={{
+                          padding: "8px 18px",
+                          borderRadius: 20,
+                          border: action.variant === "secondary" ? `1.5px solid ${GRAY_BORDER}` : "none",
+                          background: action.variant === "secondary" ? "#fff" : GREEN,
+                          color: action.variant === "secondary" ? TEXT_MAIN : "#fff",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: buddyBusy ? "not-allowed" : "pointer",
+                          opacity: buddyBusy ? 0.65 : 1,
+                          transition: "opacity 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (e.currentTarget.disabled) return;
+                          e.currentTarget.style.opacity = "0.85";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (e.currentTarget.disabled) return;
+                          e.currentTarget.style.opacity = "1";
+                        }}
+                      >
+                        {action.buddyAction && buddyActionLoading === action.buddyAction
+                          ? action.buddyAction === "accept"
+                            ? "Accepting…"
+                            : "Declining…"
+                          : action.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -471,6 +668,12 @@ function getMutationErrorMessage(error, fallbackMessage) {
   const graphQLErrorMessage = error?.graphQLErrors?.[0]?.message;
   const networkErrorMessage = error?.networkError?.result?.errors?.[0]?.message;
   return graphQLErrorMessage || networkErrorMessage || error?.message || fallbackMessage;
+}
+
+/** Normalize API enums (e.g. Prisma/GQL quirks) so action chips match reliably. */
+function normalizeBuddyNotificationType(type) {
+  if (type == null) return "";
+  return String(type).trim().replace(/\s+/g, "_").toUpperCase();
 }
 
 function notificationTypeToTitle(type) {
@@ -543,18 +746,19 @@ function formatNotificationTime(createdAt, nowMs = Date.now()) {
 }
 
 function getNotificationActions(type) {
-  if (type === "MATCH_GENERATED") {
+  const t = normalizeBuddyNotificationType(type);
+  if (t === "MATCH_GENERATED") {
     return [{ label: "View Match", variant: "primary" }];
   }
 
-  if (type === "BUDDY_REQUEST_SENT") {
+  if (t === "BUDDY_REQUEST_SENT") {
     return [
-      { label: "Decline", variant: "secondary" },
-      { label: "Accept", variant: "primary" },
+      { label: "Decline", variant: "secondary", buddyAction: "reject" },
+      { label: "Accept", variant: "primary", buddyAction: "accept" },
     ];
   }
 
-  if (type === "SESSION_INVITATION" || type === "SESSION_CREATED") {
+  if (t === "SESSION_INVITATION" || t === "SESSION_CREATED") {
     return [{ label: "View Session", variant: "primary" }];
   }
 
