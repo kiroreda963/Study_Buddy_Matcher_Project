@@ -55,6 +55,7 @@ const typeDefs = gql`
 
   type Query {
     getMatchById(matchId: ID!): Match
+    getUserMatches: [Match!]!
     getBuddyRequests: [BuddyRequest!]!
     getConnections: [Connection!]!
     getMatchProfile: MatchProfileSnapshot

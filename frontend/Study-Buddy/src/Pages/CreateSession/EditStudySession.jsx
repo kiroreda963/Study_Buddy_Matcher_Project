@@ -25,8 +25,9 @@ const BuddyCard = ({ buddyId, isSelected, onClick }) => {
     skip: !buddyId,
   });
 
-  const buddyName = data?.otherUser?.name || `Buddy ${buddyId.substring(0, 5)}`;
-  const university = data?.otherUser?.university;
+  const buddyName =
+    data?.getUserProfile?.name || `Buddy ${buddyId.substring(0, 5)}`;
+  const university = data?.getUserProfile?.university;
 
   return (
     <div
@@ -62,10 +63,13 @@ const EditStudySession = () => {
   });
 
   // Queries
-  const { data: sessionData, loading: sessionLoading } = useQuery(GET_STUDY_SESSION_BY_ID, {
-    client: sessionClient,
-    variables: { id },
-  });
+  const { data: sessionData, loading: sessionLoading } = useQuery(
+    GET_STUDY_SESSION_BY_ID,
+    {
+      client: sessionClient,
+      variables: { id },
+    },
+  );
 
   const { data: profileData, loading: profileLoading } = useQuery(GET_TOPICS, {
     client: profileClient,
@@ -112,7 +116,10 @@ const EditStudySession = () => {
 
       if (!isNaN(sessionDate.getTime())) {
         const datePart = sessionDate.toISOString().split("T")[0];
-        const timePart = sessionDate.toTimeString().split(" ")[0].substring(0, 5);
+        const timePart = sessionDate
+          .toTimeString()
+          .split(" ")[0]
+          .substring(0, 5);
 
         setFormData({
           topic: session.topic?.trim() || "",
@@ -172,13 +179,28 @@ const EditStudySession = () => {
   };
 
   if (sessionLoading) {
-    return <div className="create-session-container">Loading session details...</div>;
+    return (
+      <div className="create-session-container">Loading session details...</div>
+    );
   }
 
   return (
     <div className="create-session-container">
       <div className="create-session-card">
-        <button onClick={() => navigate(-1)} className="back-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+        <button
+          onClick={() => navigate(-1)}
+          className="back-btn"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            color: "var(--text-muted)",
+            marginBottom: "1rem",
+          }}
+        >
           <ArrowLeft size={20} /> Back
         </button>
         <div className="create-session-header">
@@ -206,9 +228,10 @@ const EditStudySession = () => {
                   </option>
                 ))}
                 {/* Ensure the current session topic is always an option */}
-                {formData.topic && !profileData?.getProfile?.topics.some(t => t.name === formData.topic) && (
-                  <option value={formData.topic}>{formData.topic}</option>
-                )}
+                {formData.topic &&
+                  !profileData?.getProfile?.topics.some(
+                    (t) => t.name === formData.topic,
+                  ) && <option value={formData.topic}>{formData.topic}</option>}
                 {profileLoading && <option>Loading topics...</option>}
               </select>
               <ChevronDown className="select-icon" size={20} />

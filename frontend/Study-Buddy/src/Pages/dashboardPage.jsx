@@ -29,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 const ME_QUERY = gql`
   query Me {
     me {
+      id
       name
     }
   }
@@ -104,14 +105,39 @@ const SEND_BUDDY_REQUEST = gql`
   }
 `;
 
+const GET_STUDY_SESSIONS = gql`
+  query GetStudySessions {
+    studySessions {
+      id
+      authorId
+      topic
+      date
+      duration
+      sessionType
+      contactInfo
+      participants
+    }
+  }
+`;
+
+const GET_BUDDY_REQUESTS = gql`
+  query BuddyRequests {
+    getBuddyRequests {
+      id
+      senderId
+      receiverId
+      status
+    }
+    getConnections {
+      id
+      userId1
+      userId2
+    }
+  }
+`;
+
 // ── Constants ───────────────────────────────────────────────────
 const HERO_IMAGE_URL = "https://i.ibb.co/nMXjdQgV/Untitled.png";
-
-const STATS = [
-  { icon: book, value: 5, label: "Courses\nCompleted" },
-  { icon: sessionCompleted, value: 20, label: "Sessions\nCompleted" },
-  { icon: upcomingCalender, value: 3, label: "Upcoming\nSessions" },
-];
 
 const NAV_TOP = [
   { icon: dashboard, label: "Dashboard", active: true },
@@ -482,6 +508,8 @@ export default function Dashboard() {
   const [recommendedLoading, setRecommendedLoading] = useState(true);
   const [recommendedError, setRecommendedError] = useState("");
   const [userData, setUserData] = useState(null);
+  const [completedSessionsCount, setCompletedSessionsCount] = useState(0);
+  const [upcomingSessionsCount, setUpcomingSessionsCount] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -563,10 +591,104 @@ export default function Dashboard() {
       }
     };
 
+    const fetchUserSessions = async () => {
+      try {
+        // Get current user ID from auth context
+        const currentUserId = user?.id;
+
+        if (!currentUserId) {
+          console.log("User ID not available yet");
+          return;
+        }
+
+        // Fetch all study sessions
+        const sessionsRes = await sessionClient.query({
+          query: GET_STUDY_SESSIONS,
+        });
+
+        const allSessions = sessionsRes?.data?.studySessions ?? [];
+        const now = new Date();
+
+        // Filter sessions where user is a participant
+        const userSessions = allSessions.filter((session) => {
+          const participants = session.participants || [];
+          return (
+            participants.includes(currentUserId) ||
+            participants.includes(String(currentUserId))
+          );
+        });
+
+        // Separate completed and upcoming sessions
+        const completed = userSessions.filter((session) => {
+          const sessionDate = new Date(Number(session.date));
+          return sessionDate < now;
+        });
+
+        const upcoming = userSessions.filter((session) => {
+          const sessionDate = new Date(Number(session.date));
+          return sessionDate >= now;
+        });
+
+        setCompletedSessionsCount(completed.length);
+        setUpcomingSessionsCount(upcoming.length);
+
+        console.log("Sessions summary:", {
+          completed: completed.length,
+          upcoming: upcoming.length,
+          userSessions: userSessions.length,
+        });
+      } catch (error) {
+        console.error("Error fetching user sessions:", error);
+      }
+    };
+
     const fetchRecommendedMatches = async () => {
       setRecommendedLoading(true);
       setRecommendedError("");
       try {
+        // Get current user ID first
+        const meResponse = await authClient.query({
+          query: ME_QUERY,
+        });
+        const currentUserId = meResponse.data?.me?.id;
+
+        if (!currentUserId) {
+          throw new Error("Could not determine current user");
+        }
+
+        // Fetch buddy requests and connections to filter out
+        const buddyData = await matchingClient.query({
+          query: GET_BUDDY_REQUESTS,
+        });
+
+        const buddyRequests = buddyData.data?.getBuddyRequests ?? [];
+        const connections = buddyData.data?.getConnections ?? [];
+
+        // Extract user IDs to filter out
+        const connectedUserIds = new Set();
+
+        // Separate incoming and outgoing requests
+        buddyRequests.forEach((req) => {
+          // Outgoing requests - I sent the request
+          if (req.senderId === currentUserId) {
+            connectedUserIds.add(String(req.receiverId));
+          }
+          // Incoming requests - Someone sent me a request
+          if (req.receiverId === currentUserId) {
+            connectedUserIds.add(String(req.senderId));
+          }
+        });
+
+        // Add already connected users
+        connections.forEach((conn) => {
+          if (conn.userId1 === currentUserId) {
+            connectedUserIds.add(String(conn.userId2));
+          } else if (conn.userId2 === currentUserId) {
+            connectedUserIds.add(String(conn.userId1));
+          }
+        });
+
+        // Generate matches
         const { data, errors } = await matchingClient.mutate({
           mutation: GENERATE_MATCHES,
         });
@@ -575,8 +697,15 @@ export default function Dashboard() {
         }
         const matches = data?.generateMatches ?? [];
         const active = matches.filter((m) => !m.ignored);
+
+        // Filter out users that are already connected or have pending requests
+        const availableMatches = active.filter((m) => {
+          const matchedUserIdStr = String(m.matchedUserId);
+          return !connectedUserIds.has(matchedUserIdStr);
+        });
+
         const withProfiles = await Promise.all(
-          active.map(async (m) => {
+          availableMatches.map(async (m) => {
             const uid = String(m.matchedUserId);
             try {
               const [profileRes, authRes] = await Promise.all([
@@ -630,6 +759,7 @@ export default function Dashboard() {
     fetchUser();
     fetchSessionRequests();
     fetchRecommendedMatches();
+    fetchUserSessions();
   }, []);
 
   const acceptSessionRequest = async (inviteId, sessionId) => {
@@ -1002,7 +1132,18 @@ export default function Dashboard() {
 
               {/* Stats */}
               <div className="stats-row">
-                {STATS.map((s) => (
+                {[
+                  {
+                    icon: sessionCompleted,
+                    value: completedSessionsCount,
+                    label: "Sessions\nCompleted",
+                  },
+                  {
+                    icon: upcomingCalender,
+                    value: upcomingSessionsCount,
+                    label: "Upcoming\nSessions",
+                  },
+                ].map((s) => (
                   <div key={s.label} className="stat-card">
                     <img src={s.icon} alt={s.label} className="stat-icon" />
                     <div>

@@ -2,6 +2,7 @@ const {
   generateMatchesForUser,
   getMatchProfileSnapshot,
   getMatchById,
+  getUserMatches,
   getBuddyRequests,
   getConnections,
   sendBuddyRequest,
@@ -19,6 +20,12 @@ const resolvers = {
         throw new Error("Unauthorized");
       }
       return getMatchById(contextValue, matchId);
+    },
+    getUserMatches: async (_, args, contextValue) => {
+      if (!contextValue.user?.userId) {
+        throw new Error("Unauthorized");
+      }
+      return getUserMatches(contextValue);
     },
     getBuddyRequests: async (_, args, contextValue) => {
       if (!contextValue.user?.userId) {

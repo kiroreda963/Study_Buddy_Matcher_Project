@@ -556,6 +556,7 @@ module.exports = {
   upsertAvailabilityProjection,
   upsertProfileProjectionFromProfileService,
   getMatchById,
+  getUserMatches,
   getBuddyRequests,
   getConnections,
   sendBuddyRequest,
