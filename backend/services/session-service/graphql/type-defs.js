@@ -69,6 +69,10 @@ const typeDefs = `#graphql
     joinStudySession(sessionId: ID!): StudySession!
 
     leaveStudySession(sessionId: ID!): StudySession!
+
+    acceptInvitation(id: ID!): Invitation!
+
+    rejectInvitation(id: ID!): Invitation!
   }
 `;
 

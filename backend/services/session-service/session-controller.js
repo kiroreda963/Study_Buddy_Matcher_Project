@@ -114,15 +114,18 @@ const sessionController = {
   async getInvitationsBySession(sessionId) {
     return await prisma.invitation.findMany({
       where: { sessionId },
+      include: {
+        session: true,
+      },
     });
   },
 
   async getInvitationsByUser(userId) {
     return await prisma.invitation.findMany({
       where: { inviteeId: userId },
-       include: {
-      session: true,
-    },
+      include: {
+        session: true,
+      },
     });
   },
 
@@ -130,6 +133,28 @@ const sessionController = {
     return await prisma.invitation.update({
       where: { id },
       data: { status },
+      include: {
+        session: true,
+      },
+    });
+  },
+
+  async acceptInvitation(id) {
+    const invitation = await prisma.invitation.findUnique({
+      where: { id },
+    });
+
+    await joinStudySession(invitation.inviteeId, invitation.sessionId);
+    return await prisma.invitation.update({
+      where: { id },
+      data: { status: "ACCEPTED" },
+    });
+  },
+
+  async rejectInvitation(id) {
+    return await prisma.invitation.update({
+      where: { id },
+      data: { status: "DECLINED" },
     });
   },
 
