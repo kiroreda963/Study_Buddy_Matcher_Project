@@ -112,7 +112,7 @@ async function generateMatchesForUser(context) {
   for (const other of others) {
     const { score, reasons } = calculateScore(currentUser, other);
 
-    if (score > 0) {
+    if (score >= 30) {
       const match = await prisma.match.upsert({
         where: {
           userId_matchedUserId: {

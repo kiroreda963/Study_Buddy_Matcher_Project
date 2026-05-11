@@ -5,6 +5,8 @@ import  Dashboard  from './Pages/dashboardPage.jsx'
 import MatchDetails from './Pages/matchDetailsPage.jsx'
 import AvailabilityPage from './Pages/AvailabilityPage.jsx'
 import NotificationPage from './Pages/NotificationPage.jsx'
+import BuddyConnectionsPage from './Pages/buddyConnectionsPage.jsx'
+import MatchingPage from './Pages/matchingPage.jsx'
 
 function App() {
   return (
@@ -15,6 +17,8 @@ function App() {
       <Route path="/match/:matchId" element={<MatchDetails />} />
       <Route path="/availability" element={<AvailabilityPage />} />
       <Route path="/notifications" element={<NotificationPage />} />
+      <Route path="/matches" element={<MatchingPage />} />
+      <Route path="/connections" element={<BuddyConnectionsPage />} />
     </Routes>
   )
 }
