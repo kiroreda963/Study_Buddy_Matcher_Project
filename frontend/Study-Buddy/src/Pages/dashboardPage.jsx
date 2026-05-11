@@ -1077,6 +1077,9 @@ export default function Dashboard() {
                   if (item.label === "Logout") {
                     handleLogout();
                   }
+                  if (item.label === "Home") {
+                    navigate("/");
+                  }
                 }}
               >
                 <img src={item.icon} alt={item.label} className="nav-icon" />
@@ -1121,7 +1124,14 @@ export default function Dashboard() {
                 <div className="hero-text">
                   <h2>Welcome back, {userData?.me.name} 👋</h2>
                   <p>Ready to find your next study buddy?</p>
-                  <button className="hero-btn">Find Study Buddy</button>
+                  <button
+                    className="hero-btn"
+                    onClick={() => {
+                      navigate("/matches");
+                    }}
+                  >
+                    Find Study Buddy
+                  </button>
                 </div>
                 <img
                   src={HERO_IMAGE_URL}
