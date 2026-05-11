@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { authClient, matchingClient } from "../clients/apolloClients.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import Navbar from "./Shared/navbar.jsx";
 
 const BUDDY_DATA_QUERY = gql`
   query BuddyConnectionsData {
@@ -132,11 +133,16 @@ function formatRelativeDate(value) {
   if (diffDays === 1) return "Sent 1 day ago";
   if (diffDays < 30) return `Sent ${diffDays} days ago`;
 
-  return created.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return created.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function fallbackProfile(userId) {
-  const suffix = String(userId || "student").slice(-5).toUpperCase();
+  const suffix = String(userId || "student")
+    .slice(-5)
+    .toUpperCase();
   return {
     id: userId,
     name: `Study Buddy ${suffix}`,
@@ -149,7 +155,9 @@ function getStoredOutgoingRequests(userId) {
   if (!userId) return [];
 
   try {
-    return JSON.parse(localStorage.getItem(`outgoingBuddyRequests:${userId}`) || "[]");
+    return JSON.parse(
+      localStorage.getItem(`outgoingBuddyRequests:${userId}`) || "[]",
+    );
   } catch {
     return [];
   }
@@ -157,7 +165,10 @@ function getStoredOutgoingRequests(userId) {
 
 function storeOutgoingRequests(userId, requests) {
   if (!userId) return;
-  localStorage.setItem(`outgoingBuddyRequests:${userId}`, JSON.stringify(requests));
+  localStorage.setItem(
+    `outgoingBuddyRequests:${userId}`,
+    JSON.stringify(requests),
+  );
 }
 
 function mergeRequests(primary, secondary) {
@@ -166,20 +177,28 @@ function mergeRequests(primary, secondary) {
     if (request?.id) byId.set(request.id, request);
   });
   return Array.from(byId.values()).sort((a, b) => {
-    const aTime = new Date(Number.isNaN(Number(a.createdAt)) ? a.createdAt : Number(a.createdAt)).getTime() || 0;
-    const bTime = new Date(Number.isNaN(Number(b.createdAt)) ? b.createdAt : Number(b.createdAt)).getTime() || 0;
+    const aTime =
+      new Date(
+        Number.isNaN(Number(a.createdAt)) ? a.createdAt : Number(a.createdAt),
+      ).getTime() || 0;
+    const bTime =
+      new Date(
+        Number.isNaN(Number(b.createdAt)) ? b.createdAt : Number(b.createdAt),
+      ).getTime() || 0;
     return bTime - aTime;
   });
 }
 
 function initials(name) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase() || "SB";
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "SB"
+  );
 }
 
 function Avatar({ profile, tone = "green" }) {
@@ -198,7 +217,9 @@ export default function BuddyConnectionsPage() {
   const { user } = useAuth();
   const currentUserId = getStoredUserId(user);
   const [incoming, setIncoming] = useState([]);
-  const [outgoing, setOutgoing] = useState(() => getStoredOutgoingRequests(currentUserId));
+  const [outgoing, setOutgoing] = useState(() =>
+    getStoredOutgoingRequests(currentUserId),
+  );
   const [connections, setConnections] = useState([]);
   const [matches, setMatches] = useState([]);
   const [profiles, setProfiles] = useState({});
@@ -225,7 +246,9 @@ export default function BuddyConnectionsPage() {
         }),
       ]);
       const supportsOutgoingRequests = Boolean(
-        schemaResult.data?.__type?.fields?.some((field) => field.name === "getOutgoingBuddyRequests"),
+        schemaResult.data?.__type?.fields?.some(
+          (field) => field.name === "getOutgoingBuddyRequests",
+        ),
       );
       const storedOutgoing = getStoredOutgoingRequests(currentUserId);
       let backendOutgoing = [];
@@ -274,7 +297,8 @@ export default function BuddyConnectionsPage() {
               variables: { userId: id },
               fetchPolicy: "network-only",
             });
-            loadedProfiles[id] = result.data?.getUserProfile || fallbackProfile(id);
+            loadedProfiles[id] =
+              result.data?.getUserProfile || fallbackProfile(id);
           } catch {
             loadedProfiles[id] = fallbackProfile(id);
           }
@@ -297,19 +321,28 @@ export default function BuddyConnectionsPage() {
   }, [loadData]);
 
   const incomingRequests = useMemo(
-    () => incoming.filter((request) => request.receiverId === currentUserId || !currentUserId),
+    () =>
+      incoming.filter(
+        (request) => request.receiverId === currentUserId || !currentUserId,
+      ),
     [currentUserId, incoming],
   );
 
   const outgoingRequests = useMemo(
-    () => outgoing.filter((request) => request.senderId === currentUserId || !currentUserId),
+    () =>
+      outgoing.filter(
+        (request) => request.senderId === currentUserId || !currentUserId,
+      ),
     [currentUserId, outgoing],
   );
 
   const myStudyBuddies = useMemo(
     () =>
       connections.map((connection) => {
-        const otherId = connection.userId1 === currentUserId ? connection.userId2 : connection.userId1;
+        const otherId =
+          connection.userId1 === currentUserId
+            ? connection.userId2
+            : connection.userId1;
         return {
           ...connection,
           otherId,
@@ -335,7 +368,9 @@ export default function BuddyConnectionsPage() {
         .filter((match) => match.score >= 30)
         .map((match) => ({
           ...match,
-          profile: profiles[match.matchedUserId] || fallbackProfile(match.matchedUserId),
+          profile:
+            profiles[match.matchedUserId] ||
+            fallbackProfile(match.matchedUserId),
           alreadySent: outgoingReceiverIds.has(match.matchedUserId),
           alreadyConnected: connectedUserIds.has(match.matchedUserId),
         })),
@@ -353,7 +388,9 @@ export default function BuddyConnectionsPage() {
         match.profile.academic_year,
         ...(match.reasons || []),
         `${Math.round(match.score)}%`,
-      ].join(" ").toLowerCase();
+      ]
+        .join(" ")
+        .toLowerCase();
       return haystack.includes(query);
     });
   }, [findQuery, suggestedBuddies]);
@@ -386,7 +423,9 @@ export default function BuddyConnectionsPage() {
         mutation: CANCEL_REQUEST,
         variables: { requestId },
       });
-      const nextStoredRequests = getStoredOutgoingRequests(currentUserId).filter((request) => request.id !== requestId);
+      const nextStoredRequests = getStoredOutgoingRequests(
+        currentUserId,
+      ).filter((request) => request.id !== requestId);
       storeOutgoingRequests(currentUserId, nextStoredRequests);
       setOutgoing(nextStoredRequests);
       await loadData();
@@ -403,11 +442,15 @@ export default function BuddyConnectionsPage() {
     setError("");
 
     try {
-      const { data } = await matchingClient.mutate({ mutation: GENERATE_MATCHES });
+      const { data } = await matchingClient.mutate({
+        mutation: GENERATE_MATCHES,
+      });
       const nextMatches = data?.generateMatches || [];
       setMatches(nextMatches);
 
-      const ids = nextMatches.map((match) => match.matchedUserId).filter(Boolean);
+      const ids = nextMatches
+        .map((match) => match.matchedUserId)
+        .filter(Boolean);
       const loadedProfiles = {};
       await Promise.all(
         ids.map(async (id) => {
@@ -418,7 +461,8 @@ export default function BuddyConnectionsPage() {
               variables: { userId: id },
               fetchPolicy: "network-only",
             });
-            loadedProfiles[id] = result.data?.getUserProfile || fallbackProfile(id);
+            loadedProfiles[id] =
+              result.data?.getUserProfile || fallbackProfile(id);
           } catch {
             loadedProfiles[id] = fallbackProfile(id);
           }
@@ -448,7 +492,11 @@ export default function BuddyConnectionsPage() {
         const storedRequests = getStoredOutgoingRequests(currentUserId);
         const nextStoredRequests = [
           sentRequest,
-          ...storedRequests.filter((request) => request.id !== sentRequest.id && request.receiverId !== sentRequest.receiverId),
+          ...storedRequests.filter(
+            (request) =>
+              request.id !== sentRequest.id &&
+              request.receiverId !== sentRequest.receiverId,
+          ),
         ];
         storeOutgoingRequests(currentUserId, nextStoredRequests);
         setOutgoing(nextStoredRequests);
@@ -588,48 +636,44 @@ export default function BuddyConnectionsPage() {
       `}</style>
 
       <div className="connections-page">
-        <header className="site-header">
-          <Link to="/dashboard" className="brand-link">Learn Together</Link>
-          <nav className="header-nav" aria-label="Primary navigation">
-            <Link to="/dashboard">Home</Link>
-            <Link to="/dashboard">Dashboard</Link>
-            <Link to="/matches">Matches</Link>
-            <Link to="/dashboard">Study Sessions</Link>
-            <Link to="/dashboard">About Us</Link>
-          </nav>
-          <div className="header-actions">
-            <button className="icon-button" type="button" aria-label="Notifications">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#55c7a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <span className="notification-dot">1</span>
-            </button>
-            <button className="icon-button profile-circle" type="button" aria-label="Profile">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21a8 8 0 0 0-16 0" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </button>
-          </div>
-        </header>
+        <Navbar />
 
         <main className="connections-main">
           <h1 className="page-title">Buddy Requests and Connections</h1>
-          <p className="page-subtitle">Manage your incoming and outgoing study buddy requests, as well as your active connections</p>
+          <p className="page-subtitle">
+            Manage your incoming and outgoing study buddy requests, as well as
+            your active connections
+          </p>
 
           <div className="request-shell">
             <div className="status-pills" aria-label="Connection summary">
-              <button className={`pill${activeFilter === "incoming" ? " active" : ""}`} type="button" onClick={() => setActiveFilter("incoming")}>
+              <button
+                className={`pill${activeFilter === "incoming" ? " active" : ""}`}
+                type="button"
+                onClick={() => setActiveFilter("incoming")}
+              >
                 Incoming ({incomingRequests.length})
               </button>
-              <button className={`pill${activeFilter === "outgoing" ? " active" : ""}`} type="button" onClick={() => setActiveFilter("outgoing")}>
+              <button
+                className={`pill${activeFilter === "outgoing" ? " active" : ""}`}
+                type="button"
+                onClick={() => setActiveFilter("outgoing")}
+              >
                 Outgoing ({outgoingRequests.length})
               </button>
-              <button className={`pill${activeFilter === "buddies" ? " active" : ""}`} type="button" onClick={() => setActiveFilter("buddies")}>
+              <button
+                className={`pill${activeFilter === "buddies" ? " active" : ""}`}
+                type="button"
+                onClick={() => setActiveFilter("buddies")}
+              >
                 My Study Buddies
               </button>
-              <button className={`pill green${activeFilter === "find" ? " active" : ""}`} type="button" onClick={handleFindBuddies} disabled={finding}>
+              <button
+                className={`pill green${activeFilter === "find" ? " active" : ""}`}
+                type="button"
+                onClick={handleFindBuddies}
+                disabled={finding}
+              >
                 {finding ? "Finding..." : "Find Buddies"}
               </button>
             </div>
@@ -639,168 +683,274 @@ export default function BuddyConnectionsPage() {
           {loading ? (
             <div className="loading-box">Loading buddy requests...</div>
           ) : (
-            <section className="request-shell" aria-label="Buddy requests and connections">
-              {visible("incoming") && <div className="panel">
-                <div className="panel-header">
-                  <h2 className="panel-title">Incoming Requests</h2>
-                  <button className="show-more" type="button" onClick={() => setActiveFilter("all")}>Show More</button>
+            <section
+              className="request-shell"
+              aria-label="Buddy requests and connections"
+            >
+              {visible("incoming") && (
+                <div className="panel">
+                  <div className="panel-header">
+                    <h2 className="panel-title">Incoming Requests</h2>
+                    <button
+                      className="show-more"
+                      type="button"
+                      onClick={() => setActiveFilter("all")}
+                    >
+                      Show More
+                    </button>
+                  </div>
+                  {incomingRequests.length === 0 ? (
+                    <EmptyRow text="No incoming buddy requests yet." />
+                  ) : (
+                    incomingRequests.map((request, index) => {
+                      const profile =
+                        profiles[request.senderId] ||
+                        fallbackProfile(request.senderId);
+                      return (
+                        <div className="person-row" key={request.id}>
+                          <div className="person-info">
+                            <Avatar
+                              profile={profile}
+                              tone={index % 2 === 0 ? "red" : "yellow"}
+                            />
+                            <div>
+                              <div className="person-name">{profile.name}</div>
+                              <div className="person-meta">
+                                {profile.university ||
+                                  profile.academic_year ||
+                                  "Study buddy"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="row-actions">
+                            <span className="request-age">
+                              {formatRelativeDate(request.createdAt)}
+                            </span>
+                            <div className="button-pair">
+                              <button
+                                className="small-btn primary"
+                                type="button"
+                                disabled={busyId === request.id}
+                                onClick={() =>
+                                  handleRequestAction(
+                                    request.id,
+                                    ACCEPT_REQUEST,
+                                  )
+                                }
+                              >
+                                Accept
+                              </button>
+                              <button
+                                className="small-btn"
+                                type="button"
+                                disabled={busyId === request.id}
+                                onClick={() =>
+                                  handleRequestAction(
+                                    request.id,
+                                    REJECT_REQUEST,
+                                  )
+                                }
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-                {incomingRequests.length === 0 ? (
-                  <EmptyRow text="No incoming buddy requests yet." />
-                ) : (
-                  incomingRequests.map((request, index) => {
-                    const profile = profiles[request.senderId] || fallbackProfile(request.senderId);
-                    return (
-                      <div className="person-row" key={request.id}>
+              )}
+
+              {visible("outgoing") && (
+                <div className="panel">
+                  <div className="panel-header">
+                    <h2 className="panel-title">Outgoing Requests</h2>
+                    <button
+                      className="show-more"
+                      type="button"
+                      onClick={() => setActiveFilter("all")}
+                    >
+                      Show More
+                    </button>
+                  </div>
+                  {outgoingRequests.length === 0 ? (
+                    <EmptyRow text="No outgoing requests yet. Use Find Buddies to send one." />
+                  ) : (
+                    outgoingRequests.map((request) => {
+                      const profile =
+                        profiles[request.receiverId] ||
+                        fallbackProfile(request.receiverId);
+                      return (
+                        <div className="person-row" key={request.id}>
+                          <div className="person-info">
+                            <Avatar profile={profile} tone="yellow" />
+                            <div>
+                              <div className="person-name">{profile.name}</div>
+                              <div className="person-meta">
+                                {profile.university ||
+                                  profile.academic_year ||
+                                  "Study buddy"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="row-actions">
+                            <span className="request-age">
+                              {formatRelativeDate(request.createdAt)}
+                            </span>
+                            <div className="button-pair">
+                              <button
+                                className="small-btn"
+                                type="button"
+                                disabled
+                              >
+                                Pending
+                              </button>
+                              <button
+                                className="small-btn"
+                                type="button"
+                                disabled={busyId === request.id}
+                                onClick={() =>
+                                  handleCancelOutgoingRequest(request.id)
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {visible("buddies") && (
+                <div className="panel">
+                  <div className="panel-header">
+                    <h2 className="panel-title">My Study Buddies</h2>
+                    <button
+                      className="show-more"
+                      type="button"
+                      onClick={() => setActiveFilter("all")}
+                    >
+                      Show More
+                    </button>
+                  </div>
+                  {myStudyBuddies.length === 0 ? (
+                    <EmptyRow text="Accepted connections will appear here." />
+                  ) : (
+                    myStudyBuddies.map((buddy, index) => (
+                      <div className="person-row" key={buddy.id}>
                         <div className="person-info">
-                          <Avatar profile={profile} tone={index % 2 === 0 ? "red" : "yellow"} />
+                          <Avatar
+                            profile={buddy.profile}
+                            tone={index % 2 === 0 ? "yellow" : "red"}
+                          />
                           <div>
-                            <div className="person-name">{profile.name}</div>
-                            <div className="person-meta">{profile.university || profile.academic_year || "Study buddy"}</div>
+                            <div className="person-name">
+                              {buddy.profile.name}
+                            </div>
+                            <div className="person-meta">
+                              {buddy.profile.university ||
+                                buddy.profile.academic_year ||
+                                "Study buddy"}
+                            </div>
                           </div>
                         </div>
                         <div className="row-actions">
-                          <span className="request-age">{formatRelativeDate(request.createdAt)}</span>
+                          <div className="button-pair">
+                            <button className="small-btn primary" type="button">
+                              View Profile
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {visible("find") && (
+                <div className="panel">
+                  <div className="panel-header">
+                    <h2 className="panel-title">Find Buddies</h2>
+                    <button
+                      className="show-more"
+                      type="button"
+                      onClick={handleFindBuddies}
+                      disabled={finding}
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="buddy-search">
+                    <input
+                      type="search"
+                      value={findQuery}
+                      onChange={(event) => setFindQuery(event.target.value)}
+                      placeholder="Search buddies by name, university, score, or match reason"
+                      aria-label="Search study buddies"
+                    />
+                  </div>
+                  {finding ? (
+                    <EmptyRow text="Finding compatible study buddies..." />
+                  ) : suggestedBuddies.length === 0 ? (
+                    <EmptyRow text="Click Find Buddies to generate matches of 30% or higher." />
+                  ) : searchedBuddies.length === 0 ? (
+                    <EmptyRow text="No buddies match your search." />
+                  ) : (
+                    searchedBuddies.map((match, index) => (
+                      <div className="person-row" key={match.id}>
+                        <div className="person-info">
+                          <Avatar
+                            profile={match.profile}
+                            tone={index % 2 === 0 ? "green" : "yellow"}
+                          />
+                          <div>
+                            <div className="person-name">
+                              {match.profile.name}
+                            </div>
+                            <div className="person-meta">
+                              {match.profile.university ||
+                                match.profile.academic_year ||
+                                "Study buddy"}{" "}
+                              · {Math.round(match.score)}% match
+                            </div>
+                            {match.reasons?.length > 0 && (
+                              <div className="match-reasons">
+                                {match.reasons.join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="row-actions">
                           <div className="button-pair">
                             <button
                               className="small-btn primary"
                               type="button"
-                              disabled={busyId === request.id}
-                              onClick={() => handleRequestAction(request.id, ACCEPT_REQUEST)}
+                              disabled={
+                                busyId === match.matchedUserId ||
+                                match.alreadySent ||
+                                match.alreadyConnected
+                              }
+                              onClick={() =>
+                                handleSendRequest(match.matchedUserId)
+                              }
                             >
-                              Accept
-                            </button>
-                            <button
-                              className="small-btn"
-                              type="button"
-                              disabled={busyId === request.id}
-                              onClick={() => handleRequestAction(request.id, REJECT_REQUEST)}
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>}
-
-              {visible("outgoing") && <div className="panel">
-                <div className="panel-header">
-                  <h2 className="panel-title">Outgoing Requests</h2>
-                  <button className="show-more" type="button" onClick={() => setActiveFilter("all")}>Show More</button>
-                </div>
-                {outgoingRequests.length === 0 ? (
-                  <EmptyRow text="No outgoing requests yet. Use Find Buddies to send one." />
-                ) : (
-                  outgoingRequests.map((request) => {
-                    const profile = profiles[request.receiverId] || fallbackProfile(request.receiverId);
-                    return (
-                      <div className="person-row" key={request.id}>
-                        <div className="person-info">
-                          <Avatar profile={profile} tone="yellow" />
-                          <div>
-                            <div className="person-name">{profile.name}</div>
-                            <div className="person-meta">{profile.university || profile.academic_year || "Study buddy"}</div>
-                          </div>
-                        </div>
-                        <div className="row-actions">
-                          <span className="request-age">{formatRelativeDate(request.createdAt)}</span>
-                          <div className="button-pair">
-                            <button className="small-btn" type="button" disabled>Pending</button>
-                            <button
-                              className="small-btn"
-                              type="button"
-                              disabled={busyId === request.id}
-                              onClick={() => handleCancelOutgoingRequest(request.id)}
-                            >
-                              Cancel
+                              {match.alreadyConnected
+                                ? "Connected"
+                                : match.alreadySent
+                                  ? "Sent"
+                                  : "Send"}
                             </button>
                           </div>
                         </div>
                       </div>
-                    );
-                  })
-                )}
-              </div>}
-
-              {visible("buddies") && <div className="panel">
-                <div className="panel-header">
-                  <h2 className="panel-title">My Study Buddies</h2>
-                  <button className="show-more" type="button" onClick={() => setActiveFilter("all")}>Show More</button>
+                    ))
+                  )}
                 </div>
-                {myStudyBuddies.length === 0 ? (
-                  <EmptyRow text="Accepted connections will appear here." />
-                ) : (
-                  myStudyBuddies.map((buddy, index) => (
-                    <div className="person-row" key={buddy.id}>
-                      <div className="person-info">
-                        <Avatar profile={buddy.profile} tone={index % 2 === 0 ? "yellow" : "red"} />
-                        <div>
-                          <div className="person-name">{buddy.profile.name}</div>
-                          <div className="person-meta">{buddy.profile.university || buddy.profile.academic_year || "Study buddy"}</div>
-                        </div>
-                      </div>
-                      <div className="row-actions">
-                        <div className="button-pair">
-                          <button className="small-btn primary" type="button">View Profile</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>}
-
-              {visible("find") && <div className="panel">
-                <div className="panel-header">
-                  <h2 className="panel-title">Find Buddies</h2>
-                  <button className="show-more" type="button" onClick={handleFindBuddies} disabled={finding}>
-                    Refresh
-                  </button>
-                </div>
-                <div className="buddy-search">
-                  <input
-                    type="search"
-                    value={findQuery}
-                    onChange={(event) => setFindQuery(event.target.value)}
-                    placeholder="Search buddies by name, university, score, or match reason"
-                    aria-label="Search study buddies"
-                  />
-                </div>
-                {finding ? (
-                  <EmptyRow text="Finding compatible study buddies..." />
-                ) : suggestedBuddies.length === 0 ? (
-                  <EmptyRow text="Click Find Buddies to generate matches of 30% or higher." />
-                ) : searchedBuddies.length === 0 ? (
-                  <EmptyRow text="No buddies match your search." />
-                ) : (
-                  searchedBuddies.map((match, index) => (
-                    <div className="person-row" key={match.id}>
-                      <div className="person-info">
-                        <Avatar profile={match.profile} tone={index % 2 === 0 ? "green" : "yellow"} />
-                        <div>
-                          <div className="person-name">{match.profile.name}</div>
-                          <div className="person-meta">{match.profile.university || match.profile.academic_year || "Study buddy"} · {Math.round(match.score)}% match</div>
-                          {match.reasons?.length > 0 && <div className="match-reasons">{match.reasons.join(", ")}</div>}
-                        </div>
-                      </div>
-                      <div className="row-actions">
-                        <div className="button-pair">
-                          <button
-                            className="small-btn primary"
-                            type="button"
-                            disabled={busyId === match.matchedUserId || match.alreadySent || match.alreadyConnected}
-                            onClick={() => handleSendRequest(match.matchedUserId)}
-                          >
-                            {match.alreadyConnected ? "Connected" : match.alreadySent ? "Sent" : "Send"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>}
+              )}
             </section>
           )}
         </main>
@@ -808,17 +958,30 @@ export default function BuddyConnectionsPage() {
         <footer className="site-footer">
           <div className="footer-grid">
             <section>
-              <h2 className="footer-headline">People are Saying About Study Together</h2>
-              <p className="footer-copy">Everything you need to start improving your academic performance</p>
+              <h2 className="footer-headline">
+                People are Saying About Study Together
+              </h2>
+              <p className="footer-copy">
+                Everything you need to start improving your academic performance
+              </p>
               <div className="quote-mark">"</div>
-              <p className="quote">This app completely changed how I study. I found a study partner in minutes and now I am more consistent than ever!</p>
+              <p className="quote">
+                This app completely changed how I study. I found a study partner
+                in minutes and now I am more consistent than ever!
+              </p>
               <div className="quote-author">- Aria Zinarino</div>
               <div className="review-avatars" aria-hidden="true">
                 <span className="review-avatar" />
                 <span className="review-avatar" />
                 <span className="review-avatar" />
                 <span className="review-avatar" />
-                <button className="play-btn" type="button" aria-label="Play testimonial">▶</button>
+                <button
+                  className="play-btn"
+                  type="button"
+                  aria-label="Play testimonial"
+                >
+                  ▶
+                </button>
               </div>
             </section>
 
@@ -854,14 +1017,26 @@ export default function BuddyConnectionsPage() {
               <h2 className="newsletter-title">Study Together</h2>
               <p>Get news about our new features</p>
               <form className="email-form">
-                <input type="email" placeholder="Enter your email here" aria-label="Email address" />
-                <button className="send-btn" type="submit" aria-label="Subscribe">›</button>
+                <input
+                  type="email"
+                  placeholder="Enter your email here"
+                  aria-label="Email address"
+                />
+                <button
+                  className="send-btn"
+                  type="submit"
+                  aria-label="Subscribe"
+                >
+                  ›
+                </button>
               </form>
             </section>
           </div>
 
           <div className="footer-bottom">
-            <span>© 2026 Study Together Inc. Copyright and rights reserved</span>
+            <span>
+              © 2026 Study Together Inc. Copyright and rights reserved
+            </span>
             <div className="legal-links">
               <a>Terms and Conditions</a>
               <a>Privacy Policy</a>

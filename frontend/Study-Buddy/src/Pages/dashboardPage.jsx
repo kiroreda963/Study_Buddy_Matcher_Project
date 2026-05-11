@@ -11,12 +11,18 @@ import {
   upcomingCalender,
   userConnect,
   dashboard,
-  bell,
+  globe,
 } from "../assets/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
+import { NotificationBell } from "./Shared/navbar.jsx";
 import { gql } from "@apollo/client";
-import { authClient, sessionClient , matchingClient , profileClient } from "../clients/apolloClients.jsx";
+import {
+  authClient,
+  sessionClient,
+  matchingClient,
+  profileClient,
+} from "../clients/apolloClients.jsx";
 import { useNavigate } from "react-router-dom";
 
 // ── GraphQL helper ──────────────────────────────────────────────
@@ -113,6 +119,7 @@ const NAV_TOP = [
   { icon: studySessions, label: "Study Sessions" },
   { icon: network, label: "Network" },
   { icon: profile, label: "Profile" },
+  { icon: globe, label: "Matches" },
 ];
 
 const NAV_BOTTOM = [
@@ -223,9 +230,7 @@ function SearchPage({ query, onBack }) {
 
       setResults(filtered);
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Search failed.",
-      );
+      setError(e instanceof Error ? e.message : "Search failed.");
       setResults([]);
     } finally {
       setLoading(false);
@@ -432,10 +437,7 @@ function SearchPage({ query, onBack }) {
               </div>
               <button
                 type="button"
-                disabled={
-                  buddyBtn[r.id]?.sending ||
-                  buddyBtn[r.id]?.sent
-                }
+                disabled={buddyBtn[r.id]?.sending || buddyBtn[r.id]?.sent}
                 onClick={() =>
                   sendBuddyRequestFromSearch(r.id, r.matchedUserId)
                 }
@@ -450,9 +452,7 @@ function SearchPage({ query, onBack }) {
                       ? "not-allowed"
                       : "pointer",
                   opacity:
-                    buddyBtn[r.id]?.sending || buddyBtn[r.id]?.sent
-                      ? 0.85
-                      : 1,
+                    buddyBtn[r.id]?.sending || buddyBtn[r.id]?.sent ? 0.85 : 1,
                   fontFamily: "inherit",
                   fontWeight: 600,
                   fontSize: 13,
@@ -483,8 +483,7 @@ export default function Dashboard() {
   const [recommendedError, setRecommendedError] = useState("");
   const [userData, setUserData] = useState(null);
   const { user, logout } = useAuth();
-    const navigate = useNavigate()
-
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
     await logout();
@@ -916,6 +915,23 @@ export default function Dashboard() {
               <div
                 key={item.label}
                 className={`nav-item${item.active ? " active" : ""}`}
+                onClick={() => {
+                  if (item.label === "Calendar") {
+                    navigate("/availability");
+                  }
+                  if (item.label === "Study Sessions") {
+                    navigate("/study-sessions");
+                  }
+                  if (item.label === "Matches") {
+                    navigate("/matches");
+                  }
+                  if (item.label === "Profile") {
+                    navigate("/user-activity");
+                  }
+                  if (item.label === "Network") {
+                    navigate("/connections");
+                  }
+                }}
               >
                 <img src={item.icon} alt={item.label} className="nav-icon" />
                 {item.label}
@@ -955,10 +971,7 @@ export default function Dashboard() {
               </div>
             </form>
             <div className="topbar-actions">
-              <button className="notif-btn">
-                <img src={bell} alt="Notifications" width={20} />
-                <span className="notif-badge">8</span>
-              </button>
+              <NotificationBell />
             </div>
           </div>
 
@@ -1028,7 +1041,10 @@ export default function Dashboard() {
                       </div>
                       <div className="session-time">Time: {s.time}</div>
                       <div className="session-actions">
-                        <button className="btn-profile" onClick={() => navigate(`/match/${s.id}`)}>
+                        <button
+                          className="btn-profile"
+                          onClick={() => navigate(`/match/${s.id}`)}
+                        >
                           View Profile
                         </button>
                         <button
@@ -1123,9 +1139,7 @@ export default function Dashboard() {
                         <button
                           type="button"
                           className={`btn-connect${r.buddyRequestSent ? " connected" : ""}`}
-                          disabled={
-                            r.buddyRequestSending || r.buddyRequestSent
-                          }
+                          disabled={r.buddyRequestSending || r.buddyRequestSent}
                           onClick={() =>
                             sendBuddyRequestForMatch(r.id, r.matchedUserId)
                           }

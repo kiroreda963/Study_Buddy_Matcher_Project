@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
+import Navbar from "../Shared/Navbar";
 import { User, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   sessionClient,
   profileClient,
@@ -19,6 +21,8 @@ import { useAuth } from "../../context/AuthContext";
 const UserProfile = ({ onBack }) => {
   const [isEditingPreferences, setIsEditingPreferences] = useState(false);
   const [pastIndex, setPastIndex] = useState(0);
+
+  const navigate = useNavigate();
 
   const { user } = useAuth();
 
@@ -170,176 +174,186 @@ const UserProfile = ({ onBack }) => {
     );
 
   return (
-    <div className="user-profile-container">
-      <button
-        className="secondary-btn mb-4"
-        onClick={onBack}
-        style={{
-          marginBottom: "1.5rem",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-        }}
-      >
-        <ArrowLeft size={16} /> Back
-      </button>
+    <div>
+      <Navbar />
+      <div className="user-profile-container">
+        {/* <button
+          className="secondary-btn mb-4"
+          onClick={onBack}
+          style={{
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <ArrowLeft size={16} /> Back
+        </button> */}
 
-      <header className="section-header">
-        <h1>User Profile & Activity</h1>
-        <p>Manage your profile</p>
-      </header>
+        <header className="section-header">
+          <h1>User Profile & Activity</h1>
+          <p>Manage your profile</p>
+        </header>
 
-      <section className="profile-card">
-        <div className="profile-content">
-          <div className="avatar-section">
-            <div className="avatar-placeholder">
-              <User />
-            </div>
-          </div>
-
-          <form className="profile-form" onSubmit={handleProfileSubmit}>
-            <div className="preferences-grid">
-              <div className="form-field">
-                <label>Name</label>
-                <input
-                  type="text"
-                  value={profileForm.name}
-                  disabled={true}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="form-field">
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={profileForm.email}
-                  disabled={true}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, email: e.target.value })
-                  }
-                />
+        <section className="profile-card">
+          <div className="profile-content">
+            <div className="avatar-section">
+              <div className="avatar-placeholder">
+                <User />
               </div>
             </div>
 
-            <div className="profile-actions"></div>
-          </form>
-        </div>
-      </section>
-
-      <section className="preferences-card">
-        <div className="preferences-title-section">
-          <h2>Study Preferences</h2>
-          <button
-            className="edit-btn"
-            onClick={() =>
-              isEditingPreferences
-                ? handlePrefSubmit({ preventDefault: () => {} })
-                : setIsEditingPreferences(true)
-            }
-          >
-            {isEditingPreferences ? "Save" : "Edit"}
-          </button>
-        </div>
-
-        <form className="preferences-grid" onSubmit={handlePrefSubmit}>
-          <div className="form-field">
-            <label>preferred study pace</label>
-            <input
-              type="text"
-              value={prefForm.studyPace}
-              disabled={!isEditingPreferences}
-              onChange={(e) =>
-                setPrefForm({ ...prefForm, studyPace: e.target.value })
-              }
-            />
-          </div>
-          <div className="form-field">
-            <label>preferred group size</label>
-            <input
-              type="text"
-              value={prefForm.groupSize}
-              disabled={!isEditingPreferences}
-              onChange={(e) =>
-                setPrefForm({ ...prefForm, groupSize: e.target.value })
-              }
-            />
-          </div>
-          <div className="form-field">
-            <label>preferred study mode</label>
-            <select
-              value={prefForm.studyMode}
-              disabled={!isEditingPreferences}
-              onChange={(e) =>
-                setPrefForm({ ...prefForm, studyMode: e.target.value })
-              }
-            >
-              <option value="online">online</option>
-              <option value="in_person">in-person</option>
-            </select>
-          </div>
-          <div className="form-field">
-            <label>preferred study style</label>
-            <select
-              value={prefForm.studyStyle}
-              disabled={!isEditingPreferences}
-              onChange={(e) =>
-                setPrefForm({ ...prefForm, studyStyle: e.target.value })
-              }
-            >
-              <option value="Quiet Study">Quiet Study</option>
-              <option value="Group Discussion">Group Discussion</option>
-              <option value="Problem Solving">Problem Solving</option>
-            </select>
-          </div>
-        </form>
-      </section>
-
-      <section>
-        <h2 className="past-sessions-title">Past Sessions</h2>
-        <div className="carousel-container" style={{ marginBottom: "3rem" }}>
-          <button
-            className="nav-arrow"
-            onClick={handlePrev}
-            disabled={pastIndex === 0}
-          >
-            <ChevronLeft size={24} />
-          </button>
-
-          <div className="carousel-viewport">
-            <div
-              className="carousel-track"
-              style={{
-                transform: `translateX(-${pastIndex * (33.333 + 1.5)}%)`,
-              }}
-            >
-              {pastSessions.length > 0 ? (
-                pastSessions.map((session) => (
-                  <SessionCard
-                    key={session.id}
-                    session={session}
-                    isCreator={session.authorId === user?.id}
-                    isUpcoming={false}
-                    formatDate={formatDate}
-                    formatTime={formatTime}
+            <form className="profile-form" onSubmit={handleProfileSubmit}>
+              <div className="preferences-grid">
+                <div className="form-field">
+                  <label>Name</label>
+                  <input
+                    type="text"
+                    value={profileForm.name}
+                    disabled={true}
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, name: e.target.value })
+                    }
                   />
-                ))
-              ) : (
-                <p>No past sessions found.</p>
-              )}
-            </div>
+                </div>
+                <div className="form-field">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    disabled={true}
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, email: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="profile-actions"></div>
+            </form>
+          </div>
+        </section>
+
+        <section className="preferences-card">
+          <div className="preferences-title-section">
+            <h2>Study Preferences</h2>
+            <button
+              className="profileSetup-btn"
+              onClick={() => navigate("/profile-setup")}
+            >
+              Profile Setup
+            </button>
+
+            <button
+              className="edit-btn"
+              onClick={() =>
+                isEditingPreferences
+                  ? handlePrefSubmit({ preventDefault: () => {} })
+                  : setIsEditingPreferences(true)
+              }
+            >
+              {isEditingPreferences ? "Save" : "Edit"}
+            </button>
           </div>
 
-          <button
-            className="nav-arrow"
-            onClick={handleNext}
-            disabled={pastIndex >= pastSessions.length - 3}
-          >
-            <ChevronRight size={24} />
-          </button>
-        </div>
-      </section>
+          <form className="preferences-grid" onSubmit={handlePrefSubmit}>
+            <div className="form-field">
+              <label>preferred study pace</label>
+              <input
+                type="text"
+                value={prefForm.studyPace}
+                disabled={!isEditingPreferences}
+                onChange={(e) =>
+                  setPrefForm({ ...prefForm, studyPace: e.target.value })
+                }
+              />
+            </div>
+            <div className="form-field">
+              <label>preferred group size</label>
+              <input
+                type="text"
+                value={prefForm.groupSize}
+                disabled={!isEditingPreferences}
+                onChange={(e) =>
+                  setPrefForm({ ...prefForm, groupSize: e.target.value })
+                }
+              />
+            </div>
+            <div className="form-field">
+              <label>preferred study mode</label>
+              <select
+                value={prefForm.studyMode}
+                disabled={!isEditingPreferences}
+                onChange={(e) =>
+                  setPrefForm({ ...prefForm, studyMode: e.target.value })
+                }
+              >
+                <option value="online">online</option>
+                <option value="in_person">in-person</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label>preferred study style</label>
+              <select
+                value={prefForm.studyStyle}
+                disabled={!isEditingPreferences}
+                onChange={(e) =>
+                  setPrefForm({ ...prefForm, studyStyle: e.target.value })
+                }
+              >
+                <option value="Quiet Study">Quiet Study</option>
+                <option value="Group Discussion">Group Discussion</option>
+                <option value="Problem Solving">Problem Solving</option>
+              </select>
+            </div>
+          </form>
+        </section>
+
+        <section>
+          <h2 className="past-sessions-title">Past Sessions</h2>
+          <div className="carousel-container" style={{ marginBottom: "3rem" }}>
+            <button
+              className="nav-arrow"
+              onClick={handlePrev}
+              disabled={pastIndex === 0}
+            >
+              <ChevronLeft size={24} />
+            </button>
+
+            <div className="carousel-viewport">
+              <div
+                className="carousel-track"
+                style={{
+                  transform: `translateX(-${pastIndex * (33.333 + 1.5)}%)`,
+                }}
+              >
+                {pastSessions.length > 0 ? (
+                  pastSessions.map((session) => (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      isCreator={session.authorId === user?.id}
+                      isUpcoming={false}
+                      formatDate={formatDate}
+                      formatTime={formatTime}
+                    />
+                  ))
+                ) : (
+                  <p>No past sessions found.</p>
+                )}
+              </div>
+            </div>
+
+            <button
+              className="nav-arrow"
+              onClick={handleNext}
+              disabled={pastIndex >= pastSessions.length - 3}
+            >
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        </section>
+      </div>
     </div>
   );
 };

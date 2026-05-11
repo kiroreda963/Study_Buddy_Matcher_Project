@@ -1,7 +1,11 @@
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { useEffect, useMemo, useState } from "react";
-import { matchingClient, notificationClient } from "../clients/apolloClients.jsx";
+import {
+  matchingClient,
+  notificationClient,
+} from "../clients/apolloClients.jsx";
+import Navbar from "./Shared/Navbar.jsx";
 
 const GREEN = "#3fcf8e";
 const LIGHT_BG = "#f0faf5";
@@ -73,7 +77,9 @@ function loadLocallyReadIds() {
     if (!raw) return new Set();
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.map((id) => normalizeNotificationId(id)).filter(Boolean));
+    return new Set(
+      parsed.map((id) => normalizeNotificationId(id)).filter(Boolean),
+    );
   } catch {
     return new Set();
   }
@@ -82,7 +88,10 @@ function loadLocallyReadIds() {
 function saveLocallyReadIds(idsSet) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(LOCAL_READ_STORAGE_KEY, JSON.stringify(Array.from(idsSet)));
+    window.localStorage.setItem(
+      LOCAL_READ_STORAGE_KEY,
+      JSON.stringify(Array.from(idsSet)),
+    );
   } catch {
     /* ignore write failures */
   }
@@ -120,7 +129,9 @@ function fallbackMarkNotificationReadQuery(client, notificationId) {
       query: GET_NOTIFICATIONS,
       data: {
         getNotifications: rows.map((n) =>
-          normalizeNotificationId(n.id) === notificationId ? { ...n, isRead: true } : n,
+          normalizeNotificationId(n.id) === notificationId
+            ? { ...n, isRead: true }
+            : n,
         ),
       },
     });
@@ -137,7 +148,9 @@ export default function NotificationPage() {
   const [actionMessage, setActionMessage] = useState("");
   const [buddyActionLoading, setBuddyActionLoading] = useState(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [locallyReadIds, setLocallyReadIds] = useState(() => loadLocallyReadIds());
+  const [locallyReadIds, setLocallyReadIds] = useState(() =>
+    loadLocallyReadIds(),
+  );
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 60000);
     return () => clearInterval(id);
@@ -146,7 +159,9 @@ export default function NotificationPage() {
     client: notificationClient,
     fetchPolicy: "cache-and-network",
   });
-  const [markAsRead, markState] = useMutation(MARK_AS_READ, { client: notificationClient });
+  const [markAsRead, markState] = useMutation(MARK_AS_READ, {
+    client: notificationClient,
+  });
   const {
     data: buddyData,
     refetch: refetchBuddyRequests,
@@ -155,8 +170,12 @@ export default function NotificationPage() {
     client: matchingClient,
     fetchPolicy: "cache-and-network",
   });
-  const [acceptBuddyRequest] = useMutation(ACCEPT_BUDDY_REQUEST, { client: matchingClient });
-  const [rejectBuddyRequest] = useMutation(REJECT_BUDDY_REQUEST, { client: matchingClient });
+  const [acceptBuddyRequest] = useMutation(ACCEPT_BUDDY_REQUEST, {
+    client: matchingClient,
+  });
+  const [rejectBuddyRequest] = useMutation(REJECT_BUDDY_REQUEST, {
+    client: matchingClient,
+  });
 
   const pendingBuddyRequests = buddyData?.getBuddyRequests ?? [];
   const pendingBuddySenderIds = useMemo(
@@ -171,7 +190,8 @@ export default function NotificationPage() {
       title: notificationTypeToTitle(n.type),
       description: n.message,
       time: formatNotificationTime(n.createdAt, nowTick),
-      read: Boolean(n.isRead) || locallyReadIds.has(normalizeNotificationId(n.id)),
+      read:
+        Boolean(n.isRead) || locallyReadIds.has(normalizeNotificationId(n.id)),
       rawType: n.type,
       senderId: n.senderId ?? null,
     }));
@@ -179,7 +199,8 @@ export default function NotificationPage() {
   const visibleNotifications = useMemo(
     () =>
       notifications.filter((n) => {
-        const isBuddy = normalizeBuddyNotificationType(n.rawType) === "BUDDY_REQUEST_SENT";
+        const isBuddy =
+          normalizeBuddyNotificationType(n.rawType) === "BUDDY_REQUEST_SENT";
         if (!isBuddy) return true;
         if (!n.senderId) return false;
         return pendingBuddySenderIds.has(String(n.senderId));
@@ -191,8 +212,8 @@ export default function NotificationPage() {
     saveLocallyReadIds(locallyReadIds);
   }, [locallyReadIds]);
 
-  const unreadCount = visibleNotifications.filter(n => !n.read).length;
-  const readCount = visibleNotifications.filter(n => n.read).length;
+  const unreadCount = visibleNotifications.filter((n) => !n.read).length;
+  const readCount = visibleNotifications.filter((n) => n.read).length;
 
   async function markAllRead() {
     setMutationError("");
@@ -250,7 +271,9 @@ export default function NotificationPage() {
     setMutationError("");
     setActionMessage("");
     if (!notification?.senderId) {
-      setMutationError("Missing sender info for this request. It may be an older notification.");
+      setMutationError(
+        "Missing sender info for this request. It may be an older notification.",
+      );
       return;
     }
     let buddyList = pendingBuddyRequests;
@@ -261,7 +284,9 @@ export default function NotificationPage() {
       /* refetch failure — try cached list below */
     }
     const pending =
-      buddyList.find((r) => String(r.senderId) === String(notification.senderId)) ?? null;
+      buddyList.find(
+        (r) => String(r.senderId) === String(notification.senderId),
+      ) ?? null;
     if (!pending) {
       setMutationError(
         buddyQueryError
@@ -273,16 +298,21 @@ export default function NotificationPage() {
 
     setBuddyActionLoading(buddyAction);
     try {
-      const mut = buddyAction === "accept" ? acceptBuddyRequest : rejectBuddyRequest;
+      const mut =
+        buddyAction === "accept" ? acceptBuddyRequest : rejectBuddyRequest;
       await mut({ variables: { requestId: pending.id } });
       await refetchBuddyRequests();
       await refetch();
       setActionMessage(
-        buddyAction === "accept" ? "Buddy request accepted." : "Buddy request declined.",
+        buddyAction === "accept"
+          ? "Buddy request accepted."
+          : "Buddy request declined.",
       );
     } catch (err) {
       const fallback =
-        buddyAction === "accept" ? "Could not accept buddy request." : "Could not decline buddy request.";
+        buddyAction === "accept"
+          ? "Could not accept buddy request."
+          : "Could not decline buddy request.";
       setMutationError(getMutationErrorMessage(err, fallback));
       await refetchBuddyRequests().catch(() => {});
     } finally {
@@ -290,164 +320,138 @@ export default function NotificationPage() {
     }
   }
 
-  const filtered = visibleNotifications.filter(n => {
-    const matchesTab = tab === "all" || (tab === "unread" && !n.read) || (tab === "read" && n.read);
-    const matchesSearch = n.title.toLowerCase().includes(search.toLowerCase()) ||
+  const filtered = visibleNotifications.filter((n) => {
+    const matchesTab =
+      tab === "all" ||
+      (tab === "unread" && !n.read) ||
+      (tab === "read" && n.read);
+    const matchesSearch =
+      n.title.toLowerCase().includes(search.toLowerCase()) ||
       n.description.toLowerCase().includes(search.toLowerCase());
     return matchesTab && matchesSearch;
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: LIGHT_BG, fontFamily: "'Nunito', 'Segoe UI', sans-serif" }}>
-
-      {/* Navbar */}
-      <nav style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 40px", height: 64, background: "#fff",
-        borderBottom: `1px solid ${GRAY_BORDER}`, position: "sticky", top: 0, zIndex: 100
-      }}>
-        <span style={{ fontSize: 22, fontWeight: 800, color: GREEN, letterSpacing: -0.5 }}>Learn Together</span>
-        <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-          {["Home", "Dashboard", "Matches", "Study Sessions", "About Us"].map(n => (
-            <span key={n}
-              onClick={() => setActiveNav(n)}
-              style={{
-                fontSize: 14, cursor: "pointer", fontWeight: 500,
-                color: "#555"
-              }}
-              onMouseEnter={e => e.target.style.color = GREEN}
-              onMouseLeave={e => e.target.style.color = "#555"}
-            >{n}</span>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexShrink: 0, lineHeight: 0 }}>
-          {/* Bell */}
-          <div style={{
-            position: "relative",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 36,
-            height: 36,
-            flexShrink: 0,
-            boxSizing: "border-box",
-          }}>
-            <img src="/bell_icon.svg" alt="Notifications"
-              style={{ width: 36, height: 36, objectFit: "contain", display: "block" }} />
-            <span style={{
-              position: "absolute",
-              top: -6,
-              right: -8,
-              minWidth: 18,
-              height: 18,
-              borderRadius: 999,
-              background: GREEN,
-              color: "#fff",
-              fontSize: 11,
-              fontWeight: 800,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0 5px",
-              lineHeight: 1,
-            }}>
-              {unreadCount}
-            </span>
-          </div>
-          {/* Avatar */}
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              boxSizing: "border-box",
-              borderRadius: "50%",
-              border: `2px solid ${GRAY_BORDER}`,
-              overflow: "hidden",
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              background: "#fafafa",
-              lineHeight: 0,
-              marginTop: -3,
-            }}
-            aria-label="Profile picture"
-          >
-            <img
-              src="/pfp.png"
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          </div>
-        </div>
-      </nav>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: LIGHT_BG,
+        fontFamily: "'Nunito', 'Segoe UI', sans-serif",
+      }}
+    >
+      <Navbar />
 
       {/* Page content */}
       <div style={{ maxWidth: 780, margin: "48px auto", padding: "0 16px" }}>
         {error && (
-          <div style={{
-            background: "#fff",
-            border: `1.5px solid ${GRAY_BORDER}`,
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16
-          }}>
-            <div style={{ fontWeight: 800, color: TEXT_MAIN, marginBottom: 4 }}>Couldn’t load notifications</div>
-            <div style={{ color: TEXT_MUTED, fontSize: 13 }}>{String(error.message || error)}</div>
+          <div
+            style={{
+              background: "#fff",
+              border: `1.5px solid ${GRAY_BORDER}`,
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 800, color: TEXT_MAIN, marginBottom: 4 }}>
+              Couldn’t load notifications
+            </div>
+            <div style={{ color: TEXT_MUTED, fontSize: 13 }}>
+              {String(error.message || error)}
+            </div>
           </div>
         )}
         {buddyQueryError && (
-          <div style={{
-            background: "#fff",
-            border: "1.5px solid #fde68a",
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16
-          }}>
-            <div style={{ fontWeight: 800, color: "#92400e", marginBottom: 4 }}>Matching service</div>
+          <div
+            style={{
+              background: "#fff",
+              border: "1.5px solid #fde68a",
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 800, color: "#92400e", marginBottom: 4 }}>
+              Matching service
+            </div>
             <div style={{ color: "#78350f", fontSize: 13 }}>
-              {getMutationErrorMessage(buddyQueryError, "Unable to reach the matching GraphQL API. Set VITE_MATCHING_API_URI in .env if it is not running at the default URL.")}
+              {getMutationErrorMessage(
+                buddyQueryError,
+                "Unable to reach the matching GraphQL API. Set VITE_MATCHING_API_URI in .env if it is not running at the default URL.",
+              )}
             </div>
           </div>
         )}
         {mutationError && (
-          <div style={{
-            background: "#fff",
-            border: "1.5px solid #fecaca",
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16
-          }}>
-            <div style={{ fontWeight: 800, color: "#b91c1c", marginBottom: 4 }}>Action failed</div>
-            <div style={{ color: "#b91c1c", fontSize: 13 }}>{mutationError}</div>
+          <div
+            style={{
+              background: "#fff",
+              border: "1.5px solid #fecaca",
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 800, color: "#b91c1c", marginBottom: 4 }}>
+              Action failed
+            </div>
+            <div style={{ color: "#b91c1c", fontSize: 13 }}>
+              {mutationError}
+            </div>
           </div>
         )}
         {actionMessage && (
-          <div style={{
-            background: "#fff",
-            border: "1.5px solid #86efac",
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16
-          }}>
-            <div style={{ color: "#166534", fontSize: 13 }}>{actionMessage}</div>
+          <div
+            style={{
+              background: "#fff",
+              border: "1.5px solid #86efac",
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ color: "#166534", fontSize: 13 }}>
+              {actionMessage}
+            </div>
           </div>
         )}
 
         {/* Header row */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            marginBottom: 24,
+          }}
+        >
           <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
             {/* Bell icon */}
             <div style={{ marginTop: 4 }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#333"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
             </div>
             <div>
-              <h1 style={{ fontSize: 32, fontWeight: 900, margin: 0, color: TEXT_MAIN }}>Notifications</h1>
+              <h1
+                style={{
+                  fontSize: 32,
+                  fontWeight: 900,
+                  margin: 0,
+                  color: TEXT_MAIN,
+                }}
+              >
+                Notifications
+              </h1>
               <p style={{ color: TEXT_MUTED, marginTop: 8, fontSize: 15 }}>
                 Stay updated with your study activities and invitations
               </p>
@@ -455,20 +459,44 @@ export default function NotificationPage() {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             {/* Unread badge */}
-            <div style={{
-              background: GREEN, color: "#fff", borderRadius: 20,
-              padding: "6px 16px", fontSize: 13, fontWeight: 700
-            }}>
+            <div
+              style={{
+                background: GREEN,
+                color: "#fff",
+                borderRadius: 20,
+                padding: "6px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
               {unreadCount} Unread
             </div>
             {/* Mark all read */}
-            <button onClick={markAllRead} disabled={markState.loading} style={{
-              display: "flex", alignItems: "center", gap: 6,
-              background: "#fff", border: `1.5px solid ${GRAY_BORDER}`,
-              borderRadius: 20, padding: "6px 16px", fontSize: 13, fontWeight: 600,
-              cursor: "pointer", color: TEXT_MAIN
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <button
+              onClick={markAllRead}
+              disabled={markState.loading}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: "#fff",
+                border: `1.5px solid ${GRAY_BORDER}`,
+                borderRadius: 20,
+                padding: "6px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                color: TEXT_MAIN,
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               Mark all as read
@@ -477,45 +505,84 @@ export default function NotificationPage() {
         </div>
 
         {/* Search */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10,
-          background: "#fff", border: `1.5px solid ${GRAY_BORDER}`,
-          borderRadius: 10, padding: "10px 16px", marginBottom: 20
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "#fff",
+            border: `1.5px solid ${GRAY_BORDER}`,
+            borderRadius: 10,
+            padding: "10px 16px",
+            marginBottom: 20,
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#aaa"
+            strokeWidth="2"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search notifications..."
             style={{
-              border: "none", outline: "none", fontSize: 14, color: TEXT_MAIN,
-              background: "transparent", width: "100%"
+              border: "none",
+              outline: "none",
+              fontSize: 14,
+              color: TEXT_MAIN,
+              background: "transparent",
+              width: "100%",
             }}
           />
         </div>
 
         {/* Tabs */}
-        <div style={{
-          display: "flex", justifyContent: "center", marginBottom: 24
-        }}>
-          <div style={{
-            display: "inline-flex", background: "#fff", border: `1.5px solid ${GRAY_BORDER}`,
-            borderRadius: 30, padding: 4, gap: 2
-          }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              background: "#fff",
+              border: `1.5px solid ${GRAY_BORDER}`,
+              borderRadius: 30,
+              padding: 4,
+              gap: 2,
+            }}
+          >
             {[
               { key: "all", label: `All (${visibleNotifications.length})` },
               { key: "unread", label: `Unread (${unreadCount})` },
               { key: "read", label: `Read (${readCount})` },
-            ].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} style={{
-                padding: "8px 28px", borderRadius: 24, border: "none",
-                background: tab === t.key ? "#f0f0f0" : "transparent",
-                fontWeight: tab === t.key ? 700 : 500,
-                fontSize: 14, color: TEXT_MAIN, cursor: "pointer",
-                transition: "background 0.15s"
-              }}>{t.label}</button>
+            ].map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                style={{
+                  padding: "8px 28px",
+                  borderRadius: 24,
+                  border: "none",
+                  background: tab === t.key ? "#f0f0f0" : "transparent",
+                  fontWeight: tab === t.key ? 700 : 500,
+                  fontSize: 14,
+                  color: TEXT_MAIN,
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+              >
+                {t.label}
+              </button>
             ))}
           </div>
         </div>
@@ -523,22 +590,42 @@ export default function NotificationPage() {
         {/* Notification Cards */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filtered.length === 0 && (
-            <div style={{ textAlign: "center", color: TEXT_MUTED, padding: 40, fontSize: 15 }}>
+            <div
+              style={{
+                textAlign: "center",
+                color: TEXT_MUTED,
+                padding: 40,
+                fontSize: 15,
+              }}
+            >
               {loading ? "Loading notifications..." : "No notifications found."}
             </div>
           )}
-          {filtered.map(notif => (
-            <div key={notif.id} style={{
-              background: notif.read ? "#fff" : "#f0f8ff",
-              border: `1.5px solid ${notif.read ? GRAY_BORDER : "#ddeeff"}`,
-              borderRadius: 14, padding: "20px 24px",
-              transition: "box-shadow 0.15s",
-              position: "relative"
-            }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+          {filtered.map((notif) => (
+            <div
+              key={notif.id}
+              style={{
+                background: notif.read ? "#fff" : "#f0f8ff",
+                border: `1.5px solid ${notif.read ? GRAY_BORDER : "#ddeeff"}`,
+                borderRadius: 14,
+                padding: "20px 24px",
+                transition: "box-shadow 0.15s",
+                position: "relative",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.boxShadow =
+                  "0 4px 16px rgba(0,0,0,0.08)")
+              }
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
             >
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 16,
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -555,27 +642,47 @@ export default function NotificationPage() {
                     color: "inherit",
                   }}
                 >
-                  <div style={{ fontWeight: 800, fontSize: 15, color: TEXT_MAIN, marginBottom: 6 }}>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: 15,
+                      color: TEXT_MAIN,
+                      marginBottom: 6,
+                    }}
+                  >
                     {notif.title}
                   </div>
-                  <div style={{ fontSize: 13, color: TEXT_MUTED, lineHeight: 1.5, marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: TEXT_MUTED,
+                      lineHeight: 1.5,
+                      marginBottom: 12,
+                    }}
+                  >
                     {notif.description}
                   </div>
-                  <div style={{ fontSize: 12, color: "#aaa" }}>{notif.time}</div>
+                  <div style={{ fontSize: 12, color: "#aaa" }}>
+                    {notif.time}
+                  </div>
                 </button>
 
                 {/* Type-specific actions — outside mark-as-read clickable area */}
-                <div style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  flexShrink: 0,
-                  position: "relative",
-                  zIndex: 2,
-                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    flexShrink: 0,
+                    position: "relative",
+                    zIndex: 2,
+                  }}
+                >
                   {/* Unread dot: top-right of action buttons when present */}
                   {!notif.read &&
-                    getNotificationActions(normalizeBuddyNotificationType(notif.rawType)).length > 0 && (
+                    getNotificationActions(
+                      normalizeBuddyNotificationType(notif.rawType),
+                    ).length > 0 && (
                       <div
                         style={{
                           position: "absolute",
@@ -592,7 +699,9 @@ export default function NotificationPage() {
 
                   {/* Unread dot fallback: top-right of card when no actions */}
                   {!notif.read &&
-                    getNotificationActions(normalizeBuddyNotificationType(notif.rawType)).length === 0 && (
+                    getNotificationActions(
+                      normalizeBuddyNotificationType(notif.rawType),
+                    ).length === 0 && (
                       <div
                         style={{
                           position: "absolute",
@@ -606,8 +715,12 @@ export default function NotificationPage() {
                         }}
                       />
                     )}
-                  {getNotificationActions(normalizeBuddyNotificationType(notif.rawType)).map((action) => {
-                    const buddyBusy = Boolean(action.buddyAction && buddyActionLoading);
+                  {getNotificationActions(
+                    normalizeBuddyNotificationType(notif.rawType),
+                  ).map((action) => {
+                    const buddyBusy = Boolean(
+                      action.buddyAction && buddyActionLoading,
+                    );
                     return (
                       <button
                         key={action.label}
@@ -618,7 +731,10 @@ export default function NotificationPage() {
                           e.preventDefault();
                           e.stopPropagation();
                           if (action.buddyAction) {
-                            await handleBuddyRequestAction(notif, action.buddyAction);
+                            await handleBuddyRequestAction(
+                              notif,
+                              action.buddyAction,
+                            );
                             return;
                           }
                           if (!notif.read) {
@@ -628,9 +744,14 @@ export default function NotificationPage() {
                         style={{
                           padding: "8px 18px",
                           borderRadius: 20,
-                          border: action.variant === "secondary" ? `1.5px solid ${GRAY_BORDER}` : "none",
-                          background: action.variant === "secondary" ? "#fff" : GREEN,
-                          color: action.variant === "secondary" ? TEXT_MAIN : "#fff",
+                          border:
+                            action.variant === "secondary"
+                              ? `1.5px solid ${GRAY_BORDER}`
+                              : "none",
+                          background:
+                            action.variant === "secondary" ? "#fff" : GREEN,
+                          color:
+                            action.variant === "secondary" ? TEXT_MAIN : "#fff",
                           fontWeight: 700,
                           fontSize: 13,
                           cursor: buddyBusy ? "not-allowed" : "pointer",
@@ -646,7 +767,8 @@ export default function NotificationPage() {
                           e.currentTarget.style.opacity = "1";
                         }}
                       >
-                        {action.buddyAction && buddyActionLoading === action.buddyAction
+                        {action.buddyAction &&
+                        buddyActionLoading === action.buddyAction
                           ? action.buddyAction === "accept"
                             ? "Accepting…"
                             : "Declining…"
@@ -667,7 +789,12 @@ export default function NotificationPage() {
 function getMutationErrorMessage(error, fallbackMessage) {
   const graphQLErrorMessage = error?.graphQLErrors?.[0]?.message;
   const networkErrorMessage = error?.networkError?.result?.errors?.[0]?.message;
-  return graphQLErrorMessage || networkErrorMessage || error?.message || fallbackMessage;
+  return (
+    graphQLErrorMessage ||
+    networkErrorMessage ||
+    error?.message ||
+    fallbackMessage
+  );
 }
 
 /** Normalize API enums (e.g. Prisma/GQL quirks) so action chips match reliably. */
@@ -678,7 +805,11 @@ function normalizeBuddyNotificationType(type) {
 
 function notificationTypeToTitle(type) {
   if (!type) return "Notification";
-  const readable = String(type).toLowerCase().split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+  const readable = String(type)
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
   return readable;
 }
 

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { authClient, matchingClient } from "../clients/apolloClients.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import Navbar from "./Shared/Navbar.jsx";
 
 const HERO_IMAGE_URL = "https://i.ibb.co/nMXjdQgV/Untitled.png";
 
@@ -94,7 +95,9 @@ function getStoredOutgoingRequests(userId) {
   if (!userId) return [];
 
   try {
-    return JSON.parse(localStorage.getItem(`outgoingBuddyRequests:${userId}`) || "[]");
+    return JSON.parse(
+      localStorage.getItem(`outgoingBuddyRequests:${userId}`) || "[]",
+    );
   } catch {
     return [];
   }
@@ -102,11 +105,16 @@ function getStoredOutgoingRequests(userId) {
 
 function storeOutgoingRequests(userId, requests) {
   if (!userId) return;
-  localStorage.setItem(`outgoingBuddyRequests:${userId}`, JSON.stringify(requests));
+  localStorage.setItem(
+    `outgoingBuddyRequests:${userId}`,
+    JSON.stringify(requests),
+  );
 }
 
 function fallbackProfile(userId) {
-  const suffix = String(userId || "student").slice(-5).toUpperCase();
+  const suffix = String(userId || "student")
+    .slice(-5)
+    .toUpperCase();
   return {
     id: userId,
     name: `Study Buddy ${suffix}`,
@@ -116,13 +124,15 @@ function fallbackProfile(userId) {
 }
 
 function initials(name) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase() || "SB";
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "SB"
+  );
 }
 
 function normalizeText(value) {
@@ -130,12 +140,16 @@ function normalizeText(value) {
 }
 
 function inferField(profile, reasons) {
-  const haystack = normalizeText(`${profile.name} ${profile.university} ${profile.academic_year} ${reasons.join(" ")}`);
+  const haystack = normalizeText(
+    `${profile.name} ${profile.university} ${profile.academic_year} ${reasons.join(" ")}`,
+  );
   if (haystack.includes("business")) return "Business";
   if (haystack.includes("art")) return "Arts";
   if (haystack.includes("law")) return "Law";
-  if (haystack.includes("medicine") || haystack.includes("medical")) return "Medicine";
-  if (haystack.includes("cyber") || haystack.includes("security")) return "Cyber Security";
+  if (haystack.includes("medicine") || haystack.includes("medical"))
+    return "Medicine";
+  if (haystack.includes("cyber") || haystack.includes("security"))
+    return "Cyber Security";
   return "Software";
 }
 
@@ -159,24 +173,54 @@ function checkboxValue(list, value, checked) {
 function Header() {
   return (
     <header className="match-header">
-      <Link to="/dashboard" className="brand-link">Learn Together</Link>
+      <Link to="/dashboard" className="brand-link">
+        Learn Together
+      </Link>
       <nav className="header-nav" aria-label="Primary navigation">
         <Link to="/dashboard">Home</Link>
         <Link to="/dashboard">Dashboard</Link>
-        <Link to="/matches" className="active">Matches</Link>
+        <Link to="/matches" className="active">
+          Matches
+        </Link>
         <Link to="/dashboard">Study Sessions</Link>
         <Link to="/dashboard">About Us</Link>
       </nav>
       <div className="header-actions">
-        <button className="icon-button" type="button" aria-label="Notifications">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#55c7a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Notifications"
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#55c7a0"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
           <span className="notification-dot">1</span>
         </button>
-        <button className="icon-button profile-circle" type="button" aria-label="Profile">
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button
+          className="icon-button profile-circle"
+          type="button"
+          aria-label="Profile"
+        >
+          <svg
+            width="23"
+            height="23"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#111"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M20 21a8 8 0 0 0-16 0" />
             <circle cx="12" cy="7" r="4" />
           </svg>
@@ -191,17 +235,30 @@ function Footer() {
     <footer className="site-footer">
       <div className="footer-grid">
         <section>
-          <h2 className="footer-headline">People are Saying About Study Together</h2>
-          <p className="footer-copy">Everything you need to start improving your academic performance</p>
+          <h2 className="footer-headline">
+            People are Saying About Study Together
+          </h2>
+          <p className="footer-copy">
+            Everything you need to start improving your academic performance
+          </p>
           <div className="quote-mark">"</div>
-          <p className="quote">This app completely changed how I study. I found a study partner in minutes and now I am more consistent than ever!</p>
+          <p className="quote">
+            This app completely changed how I study. I found a study partner in
+            minutes and now I am more consistent than ever!
+          </p>
           <div className="quote-author">- Aria Zinarino</div>
           <div className="review-avatars" aria-hidden="true">
             <span className="review-avatar avatar-one" />
             <span className="review-avatar avatar-two" />
             <span className="review-avatar avatar-three" />
             <span className="review-avatar avatar-four" />
-            <button className="play-btn" type="button" aria-label="Play testimonial">▶</button>
+            <button
+              className="play-btn"
+              type="button"
+              aria-label="Play testimonial"
+            >
+              ▶
+            </button>
           </div>
         </section>
 
@@ -237,8 +294,14 @@ function Footer() {
           <h2 className="newsletter-title">Study Together</h2>
           <p>Get news about our new features</p>
           <form className="email-form">
-            <input type="email" placeholder="Enter your email here" aria-label="Email address" />
-            <button className="send-btn" type="submit" aria-label="Subscribe">›</button>
+            <input
+              type="email"
+              placeholder="Enter your email here"
+              aria-label="Email address"
+            />
+            <button className="send-btn" type="submit" aria-label="Subscribe">
+              ›
+            </button>
           </form>
         </section>
       </div>
@@ -269,7 +332,11 @@ function FilterBox({ title, children }) {
 function CheckOption({ checked, label, onChange }) {
   return (
     <label className="check-option">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
       <span>{label}</span>
     </label>
   );
@@ -282,7 +349,10 @@ function MatchCard({ match, onSend, busy }) {
         <div className="student-mark">{initials(match.profile.name)}</div>
         <div className="student-main">
           <h3>{match.profile.name}</h3>
-          <p>{match.profile.university || "University student"} · {match.profile.academic_year || "Student"}</p>
+          <p>
+            {match.profile.university || "University student"} ·{" "}
+            {match.profile.academic_year || "Student"}
+          </p>
         </div>
         <span className="score-pill">{Math.round(match.score)}%</span>
       </div>
@@ -296,17 +366,26 @@ function MatchCard({ match, onSend, busy }) {
 
       <div className="tag-row">
         {match.tags.slice(0, 2).map((tag, index) => (
-          <span key={tag} className={`match-tag ${index === 0 ? "warm" : "dark"}`}>{tag}</span>
+          <span
+            key={tag}
+            className={`match-tag ${index === 0 ? "warm" : "dark"}`}
+          >
+            {tag}
+          </span>
         ))}
       </div>
 
       <div className="time-row">
-        <span className="calendar-icon" aria-hidden="true">▣</span>
+        <span className="calendar-icon" aria-hidden="true">
+          ▣
+        </span>
         <span>{match.availabilityLabel}</span>
       </div>
 
       <div className="card-actions">
-        <button className="outline-action" type="button">View Profile</button>
+        <button className="outline-action" type="button">
+          View Profile
+        </button>
         <button
           className="green-action"
           type="button"
@@ -331,18 +410,29 @@ export default function MatchingPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
-  const [sentIds, setSentIds] = useState(() => new Set(getStoredOutgoingRequests(currentUserId).map((request) => request.receiverId)));
+  const [sentIds, setSentIds] = useState(
+    () =>
+      new Set(
+        getStoredOutgoingRequests(currentUserId).map(
+          (request) => request.receiverId,
+        ),
+      ),
+  );
 
   const loadMatches = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const { data } = await matchingClient.mutate({ mutation: GENERATE_MATCHES });
+      const { data } = await matchingClient.mutate({
+        mutation: GENERATE_MATCHES,
+      });
       const nextMatches = data?.generateMatches || [];
       setMatches(nextMatches);
 
-      const ids = nextMatches.map((match) => match.matchedUserId).filter(Boolean);
+      const ids = nextMatches
+        .map((match) => match.matchedUserId)
+        .filter(Boolean);
       const loadedProfiles = {};
       await Promise.all(
         ids.map(async (id) => {
@@ -352,7 +442,8 @@ export default function MatchingPage() {
               variables: { userId: id },
               fetchPolicy: "network-only",
             });
-            loadedProfiles[id] = result.data?.getUserProfile || fallbackProfile(id);
+            loadedProfiles[id] =
+              result.data?.getUserProfile || fallbackProfile(id);
           } catch {
             loadedProfiles[id] = fallbackProfile(id);
           }
@@ -377,52 +468,88 @@ export default function MatchingPage() {
 
   const decoratedMatches = useMemo(
     () =>
-      matches.filter((match) => match.score >= 30).map((match, index) => {
-        const profile = profiles[match.matchedUserId] || fallbackProfile(match.matchedUserId);
-        const reasons = match.reasons || [];
-        const tags = inferTags(reasons);
-        const field = inferField(profile, reasons);
-        return {
-          ...match,
-          profile,
-          field,
-          fieldKey: normalizeText(field).split(" ")[0],
-          primaryStyle: reasons[0] || "Focused study",
-          secondaryStyle: reasons[1] || "Good match",
-          meetingLabel: reasons.some((reason) => normalizeText(reason).includes("availability")) ? "Online" : "Flexible",
-          availabilityLabel: reasons.some((reason) => normalizeText(reason).includes("availability")) ? "Tue, Thu 3-7 PM" : "Wed, Fri 3-7 PM",
-          tags,
-          sent: sentIds.has(match.matchedUserId),
-          order: index,
-        };
-      }),
+      matches
+        .filter((match) => match.score >= 30)
+        .map((match, index) => {
+          const profile =
+            profiles[match.matchedUserId] ||
+            fallbackProfile(match.matchedUserId);
+          const reasons = match.reasons || [];
+          const tags = inferTags(reasons);
+          const field = inferField(profile, reasons);
+          return {
+            ...match,
+            profile,
+            field,
+            fieldKey: normalizeText(field).split(" ")[0],
+            primaryStyle: reasons[0] || "Focused study",
+            secondaryStyle: reasons[1] || "Good match",
+            meetingLabel: reasons.some((reason) =>
+              normalizeText(reason).includes("availability"),
+            )
+              ? "Online"
+              : "Flexible",
+            availabilityLabel: reasons.some((reason) =>
+              normalizeText(reason).includes("availability"),
+            )
+              ? "Tue, Thu 3-7 PM"
+              : "Wed, Fri 3-7 PM",
+            tags,
+            sent: sentIds.has(match.matchedUserId),
+            order: index,
+          };
+        }),
     [matches, profiles, sentIds],
   );
 
   const visibleMatches = useMemo(() => {
     const filtered = decoratedMatches.filter((match) => {
       const reasonText = normalizeText(match.reasons.join(" "));
-      const profileText = normalizeText(`${match.profile.name} ${match.profile.university} ${match.profile.academic_year}`);
+      const profileText = normalizeText(
+        `${match.profile.name} ${match.profile.university} ${match.profile.academic_year}`,
+      );
       const selectedRoles = appliedFilters.roles;
       const selectedStyles = appliedFilters.styles;
       const selectedMeeting = appliedFilters.meeting;
 
-      const roleMatch = selectedRoles.length === 0 || selectedRoles.some((role) => profileText.includes(role) || normalizeText(match.field).includes(role));
-      const courseMatch = !appliedFilters.course || reasonText.includes(appliedFilters.course);
+      const roleMatch =
+        selectedRoles.length === 0 ||
+        selectedRoles.some(
+          (role) =>
+            profileText.includes(role) ||
+            normalizeText(match.field).includes(role),
+        );
+      const courseMatch =
+        !appliedFilters.course || reasonText.includes(appliedFilters.course);
       const styleMatch =
         selectedStyles.length === 0 ||
-        selectedStyles.some((style) => reasonText.includes(style) || match.tags.some((tag) => normalizeText(tag).includes(style)));
+        selectedStyles.some(
+          (style) =>
+            reasonText.includes(style) ||
+            match.tags.some((tag) => normalizeText(tag).includes(style)),
+        );
       const meetingMatch =
         selectedMeeting.length === 0 ||
-        selectedMeeting.some((meeting) => normalizeText(match.meetingLabel).includes(meeting === "inperson" ? "in" : meeting) || reasonText.includes(meeting));
-      const scoreMatch = appliedFilters.groupSize === 0 || match.score >= Math.max(0, appliedFilters.groupSize - 2) * 5;
+        selectedMeeting.some(
+          (meeting) =>
+            normalizeText(match.meetingLabel).includes(
+              meeting === "inperson" ? "in" : meeting,
+            ) || reasonText.includes(meeting),
+        );
+      const scoreMatch =
+        appliedFilters.groupSize === 0 ||
+        match.score >= Math.max(0, appliedFilters.groupSize - 2) * 5;
 
-      return roleMatch && courseMatch && styleMatch && meetingMatch && scoreMatch;
+      return (
+        roleMatch && courseMatch && styleMatch && meetingMatch && scoreMatch
+      );
     });
 
     return [...filtered].sort((a, b) => {
-      if (sortBy === "newest") return String(b.createdAt).localeCompare(String(a.createdAt));
-      if (sortBy === "name") return a.profile.name.localeCompare(b.profile.name);
+      if (sortBy === "newest")
+        return String(b.createdAt).localeCompare(String(a.createdAt));
+      if (sortBy === "name")
+        return a.profile.name.localeCompare(b.profile.name);
       return b.score - a.score;
     });
   }, [appliedFilters, decoratedMatches, sortBy]);
@@ -441,7 +568,9 @@ export default function MatchingPage() {
         const storedRequests = getStoredOutgoingRequests(currentUserId);
         const nextStoredRequests = [
           sentRequest,
-          ...storedRequests.filter((request) => request.receiverId !== sentRequest.receiverId),
+          ...storedRequests.filter(
+            (request) => request.receiverId !== sentRequest.receiverId,
+          ),
         ];
         storeOutgoingRequests(currentUserId, nextStoredRequests);
       }
@@ -587,15 +716,22 @@ export default function MatchingPage() {
       `}</style>
 
       <div className="matching-page">
-        <Header />
+        <Navbar />
 
         <main className="match-main">
           <section className="hero-row">
             <div className="hero-copy">
               <h1>Find Your Study Buddy</h1>
-              <p>Showing matches based on your courses, preferences, and availability</p>
+              <p>
+                Showing matches based on your courses, preferences, and
+                availability
+              </p>
             </div>
-            <img className="hero-art" src={HERO_IMAGE_URL} alt="Students studying together" />
+            <img
+              className="hero-art"
+              src={HERO_IMAGE_URL}
+              alt="Students studying together"
+            />
           </section>
 
           <section className="content-frame">
@@ -603,7 +739,16 @@ export default function MatchingPage() {
               <aside className="filters-panel">
                 <div className="filters-heading">
                   <span className="filter-icon" aria-hidden="true">
-                    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="23"
+                      height="23"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M3 5h18" />
                       <path d="M7 12h10" />
                       <path d="M10 19h4" />
@@ -619,16 +764,32 @@ export default function MatchingPage() {
                         key={value}
                         label={label}
                         checked={filters.roles.includes(value)}
-                        onChange={(checked) => setFilters((current) => ({ ...current, roles: checkboxValue(current.roles, value, checked) }))}
+                        onChange={(checked) =>
+                          setFilters((current) => ({
+                            ...current,
+                            roles: checkboxValue(current.roles, value, checked),
+                          }))
+                        }
                       />
                     ))}
                   </div>
                 </FilterBox>
 
                 <FilterBox title="Courses">
-                  <select className="course-select" value={filters.course} onChange={(event) => setFilters((current) => ({ ...current, course: event.target.value }))}>
+                  <select
+                    className="course-select"
+                    value={filters.course}
+                    onChange={(event) =>
+                      setFilters((current) => ({
+                        ...current,
+                        course: event.target.value,
+                      }))
+                    }
+                  >
                     {COURSE_OPTIONS.map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
                     ))}
                   </select>
                 </FilterBox>
@@ -640,7 +801,16 @@ export default function MatchingPage() {
                         key={value}
                         label={label}
                         checked={filters.styles.includes(value)}
-                        onChange={(checked) => setFilters((current) => ({ ...current, styles: checkboxValue(current.styles, value, checked) }))}
+                        onChange={(checked) =>
+                          setFilters((current) => ({
+                            ...current,
+                            styles: checkboxValue(
+                              current.styles,
+                              value,
+                              checked,
+                            ),
+                          }))
+                        }
                       />
                     ))}
                   </div>
@@ -653,7 +823,16 @@ export default function MatchingPage() {
                         key={value}
                         label={label}
                         checked={filters.meeting.includes(value)}
-                        onChange={(checked) => setFilters((current) => ({ ...current, meeting: checkboxValue(current.meeting, value, checked) }))}
+                        onChange={(checked) =>
+                          setFilters((current) => ({
+                            ...current,
+                            meeting: checkboxValue(
+                              current.meeting,
+                              value,
+                              checked,
+                            ),
+                          }))
+                        }
                       />
                     ))}
                   </div>
@@ -661,7 +840,11 @@ export default function MatchingPage() {
 
                 <FilterBox title="Group Size">
                   <div className="group-label">
-                    <span>{filters.groupSize === 0 ? "Any size" : `${filters.groupSize} students`}</span>
+                    <span>
+                      {filters.groupSize === 0
+                        ? "Any size"
+                        : `${filters.groupSize} students`}
+                    </span>
                     <span>12 students</span>
                   </div>
                   <input
@@ -670,7 +853,12 @@ export default function MatchingPage() {
                     min="0"
                     max="12"
                     value={filters.groupSize}
-                    onChange={(event) => setFilters((current) => ({ ...current, groupSize: Number(event.target.value) }))}
+                    onChange={(event) =>
+                      setFilters((current) => ({
+                        ...current,
+                        groupSize: Number(event.target.value),
+                      }))
+                    }
                   />
                   <div className="group-scale">
                     <span>Any</span>
@@ -680,18 +868,41 @@ export default function MatchingPage() {
                 </FilterBox>
 
                 <div className="filter-actions">
-                  <button className="apply-btn wide" type="button" onClick={showAllMatches}>Show All Matches</button>
-                  <button className="apply-btn" type="button" onClick={() => setAppliedFilters(filters)}>Apply Filters</button>
-                  <button className="reset-btn" type="button" onClick={resetFilters}>Reset</button>
+                  <button
+                    className="apply-btn wide"
+                    type="button"
+                    onClick={showAllMatches}
+                  >
+                    Show All Matches
+                  </button>
+                  <button
+                    className="apply-btn"
+                    type="button"
+                    onClick={() => setAppliedFilters(filters)}
+                  >
+                    Apply Filters
+                  </button>
+                  <button
+                    className="reset-btn"
+                    type="button"
+                    onClick={resetFilters}
+                  >
+                    Reset
+                  </button>
                 </div>
               </aside>
 
               <section className="matches-panel">
                 <div className="match-toolbar">
-                  <div className="matches-found">{visibleMatches.length} Matches Found</div>
+                  <div className="matches-found">
+                    {visibleMatches.length} Matches Found
+                  </div>
                   <label className="sort-box">
                     <span>Sort By:</span>
-                    <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                    <select
+                      value={sortBy}
+                      onChange={(event) => setSortBy(event.target.value)}
+                    >
                       <option value="best">Best Match</option>
                       <option value="newest">Newest</option>
                       <option value="name">Name</option>
@@ -702,9 +913,14 @@ export default function MatchingPage() {
                 {error && <div className="error-box">{error}</div>}
 
                 {loading ? (
-                  <div className="state-box">Finding your strongest study matches...</div>
+                  <div className="state-box">
+                    Finding your strongest study matches...
+                  </div>
                 ) : visibleMatches.length === 0 ? (
-                  <div className="state-box">No matches fit these filters. Reset filters or update your study profile.</div>
+                  <div className="state-box">
+                    No matches fit these filters. Reset filters or update your
+                    study profile.
+                  </div>
                 ) : (
                   <div className="cards-grid">
                     {visibleMatches.map((match) => (

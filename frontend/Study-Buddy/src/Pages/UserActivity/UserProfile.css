@@ -111,6 +111,19 @@
   cursor: pointer;
   transition: background-color 0.2s;
 }
+.profileSetup-btn {
+  background-color: #57c19d;
+  color: #ffffff;
+  border: 1px solid #ddd;
+  padding: 0.7rem 2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.profileSetup-btn:hover {
+  background-color: #48a686;
+}
 
 .edit-btn:hover {
   background-color: #f5f5f5;

@@ -10,6 +10,19 @@ import upcomingCalender from "./dashboard/upcoming-calender.svg";
 import userConnect from "./dashboard/user-connect.svg";
 import dashboard from "./dashboard/dashboard.svg";
 import bell from "./dashboard/bell.svg";
-export { book 
-, calendar, home, logouticon, network, profile, sessionCompleted, studySessions, upcomingCalender, userConnect, dashboard, bell
+import globe from "./dashboard/globe.svg";
+export {
+  book,
+  calendar,
+  home,
+  logouticon,
+  network,
+  profile,
+  sessionCompleted,
+  studySessions,
+  upcomingCalender,
+  userConnect,
+  dashboard,
+  bell,
+  globe,
 };
