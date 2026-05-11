@@ -7,6 +7,8 @@ import AvailabilityPage from './Pages/AvailabilityPage.jsx'
 import NotificationPage from './Pages/NotificationPage.jsx'
 import BuddyConnectionsPage from './Pages/buddyConnectionsPage.jsx'
 import MatchingPage from './Pages/matchingPage.jsx'
+import ProfileSetupPage from './Pages/ProfileSetupPage.jsx'
+import StudyPreferencesPage from './Pages/StudyPreferencesPage.jsx'
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
       <Route path="/notifications" element={<NotificationPage />} />
       <Route path="/matches" element={<MatchingPage />} />
       <Route path="/connections" element={<BuddyConnectionsPage />} />
+      <Route path="/profile-setup" element={<ProfileSetupPage />} />
+      <Route path="/study-preferences" element={<StudyPreferencesPage />} />
     </Routes>
   )
 }
