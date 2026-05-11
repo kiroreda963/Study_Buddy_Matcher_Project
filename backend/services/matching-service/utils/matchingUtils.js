@@ -1,6 +1,10 @@
 function intersectionCount(arr1, arr2) {
-  const set2 = new Set(arr2.map(v => v.toLowerCase()));
-  return arr1.filter(v => set2.has(v.toLowerCase())).length;
+  const set2 = new Set(arr2.filter(Boolean).map(v => String(v).toLowerCase()));
+  return arr1.filter(v => v && set2.has(String(v).toLowerCase())).length;
+}
+
+function sameLowerValue(valueA, valueB) {
+  return Boolean(valueA && valueB && String(valueA).toLowerCase() === String(valueB).toLowerCase());
 }
 
 function toMinutes(time) {
@@ -70,17 +74,17 @@ function calculateScore(profileA, profileB) {
     reasons.push("Overlapping availability");
   }
 
-  if (profileA.preferredMode && profileA.preferredMode.toLowerCase() === profileB.preferredMode.toLowerCase()) {
+  if (sameLowerValue(profileA.preferredMode, profileB.preferredMode)) {
     score += 10;
     reasons.push("Same study mode");
   }
 
-  if (profileA.preferredStyle && profileA.preferredStyle.toLowerCase() === profileB.preferredStyle.toLowerCase()) {
+  if (sameLowerValue(profileA.preferredStyle, profileB.preferredStyle)) {
     score += 5;
     reasons.push("Same study style");
   }
 
-  if (profileA.preferredPace && profileA.preferredPace.toLowerCase() === profileB.preferredPace.toLowerCase()) {
+  if (sameLowerValue(profileA.preferredPace, profileB.preferredPace)) {
     score += 5;
     reasons.push("Same study pace");
   }

@@ -17,6 +17,7 @@ import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { authClient, sessionClient , matchingClient , profileClient } from "../clients/apolloClients.jsx";
+import { useNavigate } from "react-router-dom";
 
 // ── GraphQL helper ──────────────────────────────────────────────
 const ME_QUERY = gql`
@@ -482,6 +483,8 @@ export default function Dashboard() {
   const [recommendedError, setRecommendedError] = useState("");
   const [userData, setUserData] = useState(null);
   const { user, logout } = useAuth();
+    const navigate = useNavigate()
+
 
   const handleLogout = async () => {
     await logout();
@@ -1025,7 +1028,9 @@ export default function Dashboard() {
                       </div>
                       <div className="session-time">Time: {s.time}</div>
                       <div className="session-actions">
-                        <button className="btn-profile">View Profile</button>
+                        <button className="btn-profile" onClick={() => navigate(`/match/${s.id}`)}>
+                          View Profile
+                        </button>
                         <button
                           type="button"
                           className="btn-accept"
