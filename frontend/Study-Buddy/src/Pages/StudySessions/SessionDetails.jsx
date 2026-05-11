@@ -9,12 +9,14 @@ import {
   Mail,
   User,
   Info,
+  Edit2,
 } from "lucide-react";
 import { sessionClient, authClient } from "../../clients/apolloClients";
 import {
   GET_STUDY_SESSION_BY_ID,
   GET_OTHER_USER,
 } from "../../graphql/operations";
+import { useAuth } from "../../context/AuthContext";
 import "./SessionDetails.css";
 
 const ParticipantName = ({ userId }) => {
@@ -35,6 +37,7 @@ const ParticipantName = ({ userId }) => {
 const SessionDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const { data, loading, error } = useQuery(GET_STUDY_SESSION_BY_ID, {
     client: sessionClient,
@@ -86,11 +89,35 @@ const SessionDetails = () => {
   if (!session)
     return <div className="session-details-container">Session not found.</div>;
 
+  const isAuthor = user && session.authorId === user.id;
+
   return (
     <div className="session-details-container">
-      <button className="back-link" onClick={() => navigate(-1)}>
-        <ArrowLeft size={18} /> Back to Sessions
-      </button>
+      <div className="session-details-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <button className="back-link" onClick={() => navigate(-1)} style={{ margin: 0 }}>
+          <ArrowLeft size={18} /> Back to Sessions
+        </button>
+        {isAuthor && (
+          <button 
+            className="edit-session-btn" 
+            onClick={() => navigate(`/edit-session/${id}`)}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              padding: '0.5rem 1rem', 
+              backgroundColor: 'var(--primary-color, #2196f3)', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            <Edit2 size={16} /> Edit Session
+          </button>
+        )}
+      </div>
 
       <header className="session-details-header">
         <div className="header-icon">

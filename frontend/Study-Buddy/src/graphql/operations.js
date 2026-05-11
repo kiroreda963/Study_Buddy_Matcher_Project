@@ -222,3 +222,32 @@ export const GET_STUDY_SESSION_BY_ID = gql`
     }
   }
 `;
+export const UPDATE_STUDY_SESSION = gql`
+  mutation UpdateStudySession(
+    $id: ID!
+    $topic: String
+    $date: String
+    $duration: Int
+    $sessionType: SessionType
+    $contactInfo: [String!]
+    $participants: [String!]
+  ) {
+    updateStudySession(
+      id: $id
+      topic: $topic
+      date: $date
+      duration: $duration
+      sessionType: $sessionType
+      contactInfo: $contactInfo
+      participants: $participants
+    ) {
+      id
+      topic
+      date
+      duration
+      sessionType
+      contactInfo
+      participants
+    }
+  }
+`;
