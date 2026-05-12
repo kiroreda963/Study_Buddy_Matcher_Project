@@ -216,7 +216,7 @@ const CreateSession = () => {
 
           {/* Duration */}
           <div className="form-group">
-            <label>Duration:</label>
+            <label>Duration (minutes):</label>
             <input
               type="number"
               name="duration"

@@ -141,7 +141,7 @@ const SessionDetails = () => {
           <label>Duration</label>
           <div className="value">
             <Clock size={20} />
-            <span>{session.duration} hours</span>
+            <span>{session.duration} minutes</span>
           </div>
         </div>
 

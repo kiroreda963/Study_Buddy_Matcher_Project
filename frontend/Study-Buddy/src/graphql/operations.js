@@ -219,6 +219,11 @@ export const GET_STUDY_SESSION_BY_ID = gql`
       sessionType
       contactInfo
       participants
+      invitations {
+        id
+        inviteeId
+        status
+      }
     }
   }
 `;
@@ -257,6 +262,13 @@ export const CREATE_INVITATION = gql`
     createInvitation(inviteeId: $inviteeId, sessionId: $sessionId) {
       id
       status
+    }
+  }
+`;
+export const DELETE_INVITATION = gql`
+  mutation DeleteInvitation($id: ID!) {
+    deleteInvitation(id: $id) {
+      id
     }
   }
 `;
