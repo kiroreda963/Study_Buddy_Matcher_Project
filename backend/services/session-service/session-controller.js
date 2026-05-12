@@ -143,7 +143,7 @@ const sessionController = {
       where: { id },
     });
 
-    await joinStudySession(invitation.inviteeId, invitation.sessionId);
+    await sessionController.joinStudySession(invitation.inviteeId, invitation.sessionId);
     return await prisma.invitation.update({
       where: { id },
       data: { status: "ACCEPTED" },
