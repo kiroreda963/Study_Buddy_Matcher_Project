@@ -7,12 +7,11 @@ import {
 
 const sessionController = {
   // StudySession CRUD
-  async createStudySession(data, authorId, inviteeId) {
+  async createStudySession(data, authorId) {
     const session = await prisma.studySession.create({
       data: {
         topic: data.topic,
         authorId: authorId,
-        inviteeId: inviteeId,
         date: new Date(data.date),
         duration: data.duration,
         sessionType: data.sessionType,
