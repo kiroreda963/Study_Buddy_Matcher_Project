@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { authClient, matchingClient } from "../clients/apolloClients.jsx";
@@ -52,6 +51,19 @@ const GENERATE_MATCHES = gql`
   mutation GenerateMatches {
     generateMatches {
       id
+      userId
+      matchedUserId
+      score
+      reasons
+    }
+  }
+`;
+
+const GET_USER_MATCHES = gql`
+  query BuddyConnectionMatches {
+    getUserMatches {
+      id
+      userId
       matchedUserId
       score
       reasons
@@ -106,6 +118,15 @@ const CANCEL_REQUEST = gql`
     cancelBuddyRequest(requestId: $requestId) {
       id
       status
+    }
+  }
+`;
+
+const REMOVE_CONNECTION = gql`
+  mutation RemoveConnection($connectedUserId: String!) {
+    removeConnection(connectedUserId: $connectedUserId) {
+      success
+      message
     }
   }
 `;
@@ -202,6 +223,58 @@ function initials(name) {
   );
 }
 
+function getOtherRequestUserId(request, currentUserId) {
+  const current = String(currentUserId || "");
+  if (String(request.senderId) === current) return String(request.receiverId);
+  if (String(request.receiverId) === current) return String(request.senderId);
+  return String(request.receiverId || request.senderId || "");
+}
+
+function newestRequest(a, b) {
+  const aTime =
+    new Date(
+      Number.isNaN(Number(a.createdAt)) ? a.createdAt : Number(a.createdAt),
+    ).getTime() || 0;
+  const bTime =
+    new Date(
+      Number.isNaN(Number(b.createdAt)) ? b.createdAt : Number(b.createdAt),
+    ).getTime() || 0;
+  return aTime >= bTime ? a : b;
+}
+
+function dedupePendingRequestPairs(requests, currentUserId) {
+  const byBuddy = new Map();
+  requests.forEach((request) => {
+    if (request.status !== "PENDING") return;
+    const buddyId = getOtherRequestUserId(request, currentUserId);
+    if (!buddyId || buddyId === String(currentUserId)) return;
+    const existing = byBuddy.get(buddyId);
+    byBuddy.set(buddyId, existing ? newestRequest(existing, request) : request);
+  });
+  return Array.from(byBuddy.values()).sort((a, b) => {
+    const aTime =
+      new Date(
+        Number.isNaN(Number(a.createdAt)) ? a.createdAt : Number(a.createdAt),
+      ).getTime() || 0;
+    const bTime =
+      new Date(
+        Number.isNaN(Number(b.createdAt)) ? b.createdAt : Number(b.createdAt),
+      ).getTime() || 0;
+    return bTime - aTime;
+  });
+}
+
+function getOtherMatchUserId(match, currentUserId) {
+  const current = String(currentUserId || "");
+  const userId = String(match?.userId || "");
+  const matchedUserId = String(match?.matchedUserId || "");
+
+  if (!current) return matchedUserId || userId;
+  if (userId === current) return matchedUserId;
+  if (matchedUserId === current) return userId;
+  return matchedUserId || userId;
+}
+
 function Avatar({ profile, tone = "green" }) {
   return (
     <div className={`buddy-avatar ${tone}`} aria-hidden="true">
@@ -237,7 +310,7 @@ export default function BuddyConnectionsPage() {
     setError("");
 
     try {
-      const [{ data }, schemaResult] = await Promise.all([
+      const [{ data }, schemaResult, matchesResult] = await Promise.all([
         matchingClient.query({
           query: BUDDY_DATA_QUERY,
           fetchPolicy: "network-only",
@@ -245,6 +318,10 @@ export default function BuddyConnectionsPage() {
         matchingClient.query({
           query: QUERY_FIELDS_QUERY,
           fetchPolicy: "cache-first",
+        }),
+        matchingClient.query({
+          query: GET_USER_MATCHES,
+          fetchPolicy: "network-only",
         }),
       ]);
       const supportsOutgoingRequests = Boolean(
@@ -263,16 +340,27 @@ export default function BuddyConnectionsPage() {
         backendOutgoing = outgoingResult.data?.getOutgoingBuddyRequests || [];
       }
 
-      const nextOutgoing = mergeRequests(backendOutgoing, storedOutgoing);
+      const nextIncoming = data?.getBuddyRequests || [];
+      const pendingRequests = dedupePendingRequestPairs(
+        mergeRequests(nextIncoming, mergeRequests(backendOutgoing, storedOutgoing)),
+        currentUserId,
+      );
+      const normalizedIncoming = pendingRequests.filter(
+        (request) => request.receiverId === currentUserId,
+      );
+      const nextOutgoing = pendingRequests.filter(
+        (request) => request.senderId === currentUserId,
+      );
       if (supportsOutgoingRequests) {
         storeOutgoingRequests(currentUserId, nextOutgoing);
       }
 
-      const nextIncoming = data?.getBuddyRequests || [];
       const nextConnections = data?.getConnections || [];
-      setIncoming(nextIncoming);
+      const nextMatches = matchesResult.data?.getUserMatches || [];
+      setIncoming(normalizedIncoming);
       setOutgoing(nextOutgoing);
       setConnections(nextConnections);
+      setMatches(nextMatches);
 
       const ids = new Set();
       nextIncoming.forEach((request) => {
@@ -287,7 +375,9 @@ export default function BuddyConnectionsPage() {
         ids.add(connection.userId1);
         ids.add(connection.userId2);
       });
-      matches.forEach((match) => ids.add(match.matchedUserId));
+      nextMatches.forEach((match) =>
+        ids.add(getOtherMatchUserId(match, currentUserId)),
+      );
       ids.delete(currentUserId);
 
       const loadedProfiles = {};
@@ -313,7 +403,7 @@ export default function BuddyConnectionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentUserId, matches]);
+  }, [currentUserId]);
   useEffect(() => {
     const timer = setTimeout(() => {
       loadData();
@@ -348,16 +438,27 @@ export default function BuddyConnectionsPage() {
         return {
           ...connection,
           otherId,
+          matchId:
+            matches.find(
+              (match) => getOtherMatchUserId(match, currentUserId) === otherId,
+            )?.id || "",
           profile: profiles[otherId] || fallbackProfile(otherId),
         };
       }),
-    [connections, currentUserId, profiles],
+    [connections, currentUserId, matches, profiles],
   );
 
   const outgoingReceiverIds = useMemo(
     () => new Set(outgoingRequests.map((request) => request.receiverId)),
     [outgoingRequests],
   );
+
+  const pendingRequestUserIds = useMemo(() => {
+    const ids = new Set();
+    incomingRequests.forEach((request) => ids.add(String(request.senderId)));
+    outgoingRequests.forEach((request) => ids.add(String(request.receiverId)));
+    return ids;
+  }, [incomingRequests, outgoingRequests]);
 
   const connectedUserIds = useMemo(
     () => new Set(myStudyBuddies.map((buddy) => buddy.otherId)),
@@ -368,15 +469,31 @@ export default function BuddyConnectionsPage() {
     () =>
       matches
         .filter((match) => match.score >= 30)
-        .map((match) => ({
-          ...match,
-          profile:
-            profiles[match.matchedUserId] ||
-            fallbackProfile(match.matchedUserId),
-          alreadySent: outgoingReceiverIds.has(match.matchedUserId),
-          alreadyConnected: connectedUserIds.has(match.matchedUserId),
-        })),
-    [connectedUserIds, matches, outgoingReceiverIds, profiles],
+        .map((match) => {
+          const buddyId = getOtherMatchUserId(match, currentUserId);
+          return {
+            ...match,
+            matchedUserId: buddyId,
+            profile: profiles[buddyId] || fallbackProfile(buddyId),
+            alreadySent: outgoingReceiverIds.has(buddyId),
+            hasPendingRequest: pendingRequestUserIds.has(buddyId),
+            alreadyConnected: connectedUserIds.has(buddyId),
+          };
+        })
+        .filter(
+          (match) =>
+            match.matchedUserId !== currentUserId &&
+            !match.hasPendingRequest &&
+            !match.alreadyConnected,
+        ),
+    [
+      connectedUserIds,
+      currentUserId,
+      matches,
+      outgoingReceiverIds,
+      pendingRequestUserIds,
+      profiles,
+    ],
   );
 
   const searchedBuddies = useMemo(() => {
@@ -438,6 +555,30 @@ export default function BuddyConnectionsPage() {
     }
   };
 
+  const handleRemoveConnection = async (connectedUserId) => {
+    setBusyId(`connection-${connectedUserId}`);
+    setError("");
+
+    try {
+      const { data } = await matchingClient.mutate({
+        mutation: REMOVE_CONNECTION,
+        variables: { connectedUserId },
+      });
+
+      if (data?.removeConnection?.success === false) {
+        throw new Error(
+          data.removeConnection.message || "Could not remove connection.",
+        );
+      }
+
+      await loadData();
+    } catch (err) {
+      setError(err.message || "Could not remove connection.");
+    } finally {
+      setBusyId("");
+    }
+  };
+
   const handleFindBuddies = async () => {
     setActiveFilter("find");
     setFinding(true);
@@ -451,7 +592,7 @@ export default function BuddyConnectionsPage() {
       setMatches(nextMatches);
 
       const ids = nextMatches
-        .map((match) => match.matchedUserId)
+        .map((match) => getOtherMatchUserId(match, currentUserId))
         .filter(Boolean);
       const loadedProfiles = {};
       await Promise.all(
@@ -581,6 +722,7 @@ export default function BuddyConnectionsPage() {
           color: #1d1d1d; font-size: 8px; font-weight: 800; cursor: pointer;
         }
         .small-btn.primary { background: #55c7a0; border-color: #55c7a0; color: #fff; }
+        .small-btn.danger { background: #fff; border-color: #ef4444; color: #ef4444; }
         .small-btn:disabled { opacity: 0.6; cursor: progress; }
         .empty-row { padding: 16px 13px; color: #95a09d; font-size: 11px; font-weight: 700; }
         .match-reasons { color: #7b8784; font-size: 9px; font-weight: 700; margin-top: 4px; max-width: 390px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -865,11 +1007,20 @@ export default function BuddyConnectionsPage() {
                             <button
                               className="small-btn primary"
                               type="button"
-                              onClick={() => {
-                                navigate(`/match/${buddy.profile.id}`);
-                              }}
+                              disabled={!buddy.matchId}
+                              onClick={() => navigate(`/match/${buddy.matchId}`)}
                             >
-                              View Profile
+                              {buddy.matchId ? "View Profile" : "No Match"}
+                            </button>
+                            <button
+                              className="small-btn danger"
+                              type="button"
+                              disabled={busyId === `connection-${buddy.otherId}`}
+                              onClick={() => handleRemoveConnection(buddy.otherId)}
+                            >
+                              {busyId === `connection-${buddy.otherId}`
+                                ? "Removing..."
+                                : "Remove"}
                             </button>
                           </div>
                         </div>

@@ -57,6 +57,7 @@ const typeDefs = gql`
     getMatchById(matchId: ID!): Match
     getUserMatches: [Match!]!
     getBuddyRequests: [BuddyRequest!]!
+    getOutgoingBuddyRequests: [BuddyRequest!]!
     getConnections: [Connection!]!
     getMatchProfile: MatchProfileSnapshot
   }

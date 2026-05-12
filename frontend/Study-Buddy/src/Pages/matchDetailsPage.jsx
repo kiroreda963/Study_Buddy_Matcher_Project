@@ -72,22 +72,6 @@ const GET_AUTH_PEER = gql`
   }
 `;
 
-/** Current user's matching projection (includes availability used for matching) */
-const GET_MY_MATCH_PROFILE = gql`
-  query MyMatchProfileSlots {
-    getMatchProfile {
-      userId
-      availabilitySlots {
-        id
-        dayOfWeek
-        startTime
-        endTime
-        userId
-      }
-    }
-  }
-`;
-
 const GET_AVAILABILITY_BY_USER = gql`
   query GetAvailabilityByUser {
     getAvailabilityByUser {
@@ -107,6 +91,53 @@ const SEND_BUDDY_REQUEST = gql`
     }
   }
 `;
+
+const GET_CONNECTIONS = gql`
+  query MatchDetailsConnections {
+    getBuddyRequests {
+      id
+      senderId
+      receiverId
+      status
+    }
+    getOutgoingBuddyRequests {
+      id
+      senderId
+      receiverId
+      status
+    }
+    getConnections {
+      id
+      userId1
+      userId2
+    }
+  }
+`;
+
+function isConnectedToPeer(connections, myUserId, peerId) {
+  const me = String(myUserId || "");
+  const peer = String(peerId || "");
+  return (connections || []).some(
+    (connection) =>
+      (String(connection.userId1) === me &&
+        String(connection.userId2) === peer) ||
+      (String(connection.userId1) === peer &&
+        String(connection.userId2) === me),
+  );
+}
+
+function hasPendingRequestWithPeer(requests, myUserId, peerId) {
+  const me = String(myUserId || "");
+  const peer = String(peerId || "");
+  return (requests || []).some((request) => {
+    if (request.status !== "PENDING") return false;
+    return (
+      (String(request.senderId) === me &&
+        String(request.receiverId) === peer) ||
+      (String(request.senderId) === peer && String(request.receiverId) === me)
+    );
+  });
+}
 
 function courseNameSet(items) {
   return new Set((items ?? []).map((c) => String(c.name).toLowerCase()));
@@ -209,10 +240,10 @@ export default function MatchDetails() {
   const [peerProfile, setPeerProfile] = useState(null);
   const [authPeer, setAuthPeer] = useState(null);
   const [myProfile, setMyProfile] = useState(null);
-  const [myMatchSlots, setMyMatchSlots] = useState([]);
   const [myAvailability, setMyAvailability] = useState([]);
   const [buddySending, setBuddySending] = useState(false);
   const [buddySent, setBuddySent] = useState(false);
+  const [alreadyConnected, setAlreadyConnected] = useState(false);
 
   const [sendBuddyRequestMutation] = useMutation(SEND_BUDDY_REQUEST, {
     client: matchingClient,
@@ -230,9 +261,11 @@ export default function MatchDetails() {
 
   useEffect(() => {
     if (!matchId) {
-      setError("Missing match id");
-      setLoading(false);
-      return;
+      const timer = setTimeout(() => {
+        setError("Missing match id");
+        setLoading(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     let cancelled = false;
@@ -270,7 +303,8 @@ export default function MatchDetails() {
         const mid = String(m.matchedUserId);
         const other = uid === me ? mid : mid === me ? uid : mid;
 
-        const [peerRes, authRes, myRes, myMatchRes] = await Promise.all([
+        const [peerRes, authRes, myRes, myMatchRes, connectionsRes] =
+          await Promise.all([
           profileClient.query({
             query: GET_PEER_PROFILE,
             variables: { userId: other },
@@ -289,6 +323,10 @@ export default function MatchDetails() {
             query: GET_AVAILABILITY_BY_USER,
             fetchPolicy: "network-only",
           }),
+          matchingClient.query({
+            query: GET_CONNECTIONS,
+            fetchPolicy: "network-only",
+          }),
         ]);
 
         if (cancelled) return;
@@ -296,10 +334,25 @@ export default function MatchDetails() {
         setPeerProfile(peerRes.data?.getProfileById ?? null);
         setAuthPeer(authRes.data?.getUserProfile ?? null);
         setMyProfile(myRes.data?.getProfile ?? null);
-        const slots = myMatchRes.data?.getMatchProfile?.availabilitySlots ?? [];
-        setMyMatchSlots(slots);
         const availability = myMatchRes.data?.getAvailabilityByUser ?? [];
         setMyAvailability(availability);
+        setAlreadyConnected(
+          isConnectedToPeer(
+            connectionsRes.data?.getConnections || [],
+            me,
+            other,
+          ),
+        );
+        setBuddySent(
+          hasPendingRequestWithPeer(
+            [
+              ...(connectionsRes.data?.getBuddyRequests || []),
+              ...(connectionsRes.data?.getOutgoingBuddyRequests || []),
+            ],
+            me,
+            other,
+          ),
+        );
       } catch (e) {
         if (cancelled) return;
         const msg =
@@ -391,7 +444,7 @@ export default function MatchDetails() {
   }, [myAvailability]);
 
   const sendBuddyRequest = async () => {
-    if (!peerId || buddySent) return;
+    if (!peerId || buddySent || alreadyConnected) return;
     setBuddySending(true);
     try {
       await sendBuddyRequestMutation({
@@ -406,7 +459,10 @@ export default function MatchDetails() {
       const ok = /already exists|already been accepted|already connected/i.test(
         msg,
       );
-      if (ok) setBuddySent(true);
+      if (ok) {
+        if (/already connected/i.test(msg)) setAlreadyConnected(true);
+        else setBuddySent(true);
+      }
       else {
         console.error(e);
         window.alert(msg);
@@ -704,12 +760,28 @@ export default function MatchDetails() {
 
               <button
                 type="button"
-                className={`btn-connect${buddySent ? " connected" : ""}`}
-                disabled={buddySending || buddySent}
+                className={`btn-connect${buddySent || alreadyConnected ? " connected" : ""}`}
+                disabled={buddySending || buddySent || alreadyConnected}
                 onClick={sendBuddyRequest}
               >
                 {buddySending ? (
                   "Sending…"
+                ) : alreadyConnected ? (
+                  <>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    Connected
+                  </>
                 ) : buddySent ? (
                   <>
                     <svg
@@ -724,7 +796,7 @@ export default function MatchDetails() {
                     >
                       <path d="M20 6L9 17l-5-5" />
                     </svg>
-                    Request sent
+                    Request pending
                   </>
                 ) : (
                   <>

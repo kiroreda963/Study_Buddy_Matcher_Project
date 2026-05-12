@@ -1,9 +1,11 @@
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   matchingClient,
   notificationClient,
+  sessionClient,
 } from "../clients/apolloClients.jsx";
 import Navbar from "./Shared/Navbar.jsx";
 
@@ -22,6 +24,28 @@ const GET_NOTIFICATIONS = gql`
       isRead
       createdAt
       senderId
+      sessionId
+    }
+  }
+`;
+
+const GET_USER_MATCHES = gql`
+  query GetUserMatchesForNotification {
+    getUserMatches {
+      id
+      userId
+      matchedUserId
+    }
+  }
+`;
+
+const GET_STUDY_SESSIONS_FOR_NOTIFICATION = gql`
+  query NotificationStudySessions {
+    studySessions {
+      id
+      authorId
+      date
+      participants
     }
   }
 `;
@@ -64,6 +88,7 @@ const REJECT_BUDDY_REQUEST = gql`
 `;
 
 const LOCAL_READ_STORAGE_KEY = "studyBuddy.notifications.locallyReadIds";
+const NOTIFICATIONS_READ_EVENT = "studyBuddy:notifications-read";
 
 function normalizeNotificationId(notificationId) {
   if (notificationId == null) return "";
@@ -95,6 +120,49 @@ function saveLocallyReadIds(idsSet) {
   } catch {
     /* ignore write failures */
   }
+}
+
+function getStoredUserId() {
+  try {
+    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    return storedUser?.id ? String(storedUser.id) : "";
+  } catch {
+    return "";
+  }
+}
+
+function getOtherMatchUserId(match, currentUserId) {
+  const current = String(currentUserId || "");
+  const userId = String(match?.userId || "");
+  const matchedUserId = String(match?.matchedUserId || "");
+  if (!current) return matchedUserId || userId;
+  if (userId === current) return matchedUserId;
+  if (matchedUserId === current) return userId;
+  return matchedUserId || userId;
+}
+
+function parseSessionDate(value) {
+  if (!value) return new Date(0);
+  const numeric = Number(value);
+  return Number.isNaN(numeric) ? new Date(value) : new Date(numeric);
+}
+
+function findFallbackSession(sessions, notification) {
+  const currentUserId = getStoredUserId();
+  const type = normalizeBuddyNotificationType(notification?.rawType);
+  const related = (sessions || []).filter((session) => {
+    if (type === "SESSION_CREATED") {
+      return String(session.authorId) === currentUserId;
+    }
+    return (
+      String(session.authorId) === currentUserId ||
+      (session.participants || []).map(String).includes(currentUserId)
+    );
+  });
+
+  return [...related].sort(
+    (a, b) => parseSessionDate(b.date) - parseSessionDate(a.date),
+  )[0];
 }
 
 /** Updates normalized Notification cache entries (fixes UI when markAsRead API errors). */
@@ -141,9 +209,9 @@ function fallbackMarkNotificationReadQuery(client, notificationId) {
 }
 
 export default function NotificationPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
-  const [activeNav, setActiveNav] = useState("Study Sessions");
   const [mutationError, setMutationError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [buddyActionLoading, setBuddyActionLoading] = useState(null);
@@ -170,6 +238,10 @@ export default function NotificationPage() {
     client: matchingClient,
     fetchPolicy: "cache-and-network",
   });
+  const { data: matchData } = useQuery(GET_USER_MATCHES, {
+    client: matchingClient,
+    fetchPolicy: "cache-and-network",
+  });
   const [acceptBuddyRequest] = useMutation(ACCEPT_BUDDY_REQUEST, {
     client: matchingClient,
   });
@@ -177,15 +249,19 @@ export default function NotificationPage() {
     client: matchingClient,
   });
 
-  const pendingBuddyRequests = buddyData?.getBuddyRequests ?? [];
+  const pendingBuddyRequests = useMemo(
+    () => buddyData?.getBuddyRequests ?? [],
+    [buddyData],
+  );
   const pendingBuddySenderIds = useMemo(
     () => new Set(pendingBuddyRequests.map((req) => String(req.senderId))),
     [pendingBuddyRequests],
   );
 
   const notifications = useMemo(() => {
+    const currentUserId = getStoredUserId();
     const rows = data?.getNotifications ?? [];
-    return rows.map((n) => ({
+    const realNotifications = rows.map((n) => ({
       id: n.id,
       title: notificationTypeToTitle(n.type),
       description: n.message,
@@ -194,8 +270,59 @@ export default function NotificationPage() {
         Boolean(n.isRead) || locallyReadIds.has(normalizeNotificationId(n.id)),
       rawType: n.type,
       senderId: n.senderId ?? null,
+      sessionId: n.sessionId ?? null,
+      createdAt: n.createdAt,
     }));
-  }, [data, nowTick, locallyReadIds]);
+
+    const realKeys = new Set(
+      realNotifications.map(
+        (n) => `${normalizeBuddyNotificationType(n.rawType)}:${n.senderId || ""}`,
+      ),
+    );
+
+    const buddyFallbacks = pendingBuddyRequests
+      .filter(
+        (request) =>
+          request.senderId &&
+          !realKeys.has(`BUDDY_REQUEST_SENT:${String(request.senderId)}`),
+      )
+      .map((request) => ({
+        id: `fallback-buddy-${request.id}`,
+        title: "Buddy Request Sent",
+        description: "You have received a buddy request",
+        time: "just now",
+        read: locallyReadIds.has(`fallback-buddy-${request.id}`),
+        rawType: "BUDDY_REQUEST_SENT",
+        senderId: request.senderId,
+        synthetic: true,
+      }));
+
+    const matchFallbacks = (matchData?.getUserMatches ?? [])
+      .filter((match) => {
+        const senderId = getOtherMatchUserId(match, currentUserId);
+        return (
+          senderId &&
+          !realKeys.has(`MATCH_GENERATED:${String(senderId)}`) &&
+          !locallyReadIds.has(`fallback-match-${match.id}`)
+        );
+      })
+      .map((match) => {
+        const senderId = getOtherMatchUserId(match, currentUserId);
+        return {
+          id: `fallback-match-${match.id}`,
+          title: "Match Generated",
+          description: "You have a study match ready to view",
+          time: "recently",
+          read: locallyReadIds.has(`fallback-match-${match.id}`),
+          rawType: "MATCH_GENERATED",
+          senderId,
+          matchId: match.id,
+          synthetic: true,
+        };
+      });
+
+    return [...realNotifications, ...buddyFallbacks, ...matchFallbacks];
+  }, [data, matchData, nowTick, locallyReadIds, pendingBuddyRequests]);
   const visibleNotifications = useMemo(
     () =>
       notifications.filter((n) => {
@@ -233,11 +360,14 @@ export default function NotificationPage() {
     try {
       await Promise.all(
         unread.map((n) =>
-          markAsRead({
-            variables: { notificationId: normalizeNotificationId(n.id) },
-          }),
+          n.synthetic
+            ? Promise.resolve()
+            : markAsRead({
+                variables: { notificationId: normalizeNotificationId(n.id) },
+              }),
         ),
       );
+      window.dispatchEvent(new Event(NOTIFICATIONS_READ_EVENT));
       await refetch();
     } catch {
       // Cache already reflects read; server may still be failing
@@ -257,6 +387,12 @@ export default function NotificationPage() {
       next.add(notificationId);
       return next;
     });
+
+    window.dispatchEvent(new Event(NOTIFICATIONS_READ_EVENT));
+
+    if (notificationId.startsWith("fallback-")) {
+      return;
+    }
 
     try {
       await markAsRead({ variables: { notificationId } });
@@ -318,6 +454,80 @@ export default function NotificationPage() {
     } finally {
       setBuddyActionLoading(null);
     }
+  }
+
+  async function handleViewMatch(notification) {
+    setMutationError("");
+    setActionMessage("");
+
+    if (!notification?.senderId) {
+      setMutationError(
+        "Missing match info for this notification. It may be an older notification.",
+      );
+      return;
+    }
+
+    try {
+      if (notification.matchId) {
+        navigate(`/match/${notification.matchId}`);
+        return;
+      }
+
+      const { data: matchData } = await matchingClient.query({
+        query: GET_USER_MATCHES,
+        fetchPolicy: "network-only",
+      });
+      const match = (matchData?.getUserMatches ?? []).find(
+        (row) =>
+          String(row.userId) === String(notification.senderId) ||
+          String(row.matchedUserId) === String(notification.senderId),
+      );
+
+      if (!match?.id) {
+        setMutationError(
+          "That match could not be found. Try opening the matches page to refresh your matches.",
+        );
+        return;
+      }
+
+      if (!notification.read) {
+        await markRead(notification.id);
+      }
+      navigate(`/match/${match.id}`);
+    } catch (err) {
+      setMutationError(getMutationErrorMessage(err, "Could not open match."));
+    }
+  }
+
+  async function handleViewSession(notification) {
+    setMutationError("");
+    setActionMessage("");
+
+    let sessionId = notification?.sessionId || notification?.senderId;
+
+    if (!sessionId) {
+      try {
+        const { data: sessionsData } = await sessionClient.query({
+          query: GET_STUDY_SESSIONS_FOR_NOTIFICATION,
+          fetchPolicy: "network-only",
+        });
+        const fallbackSession = findFallbackSession(
+          sessionsData?.studySessions ?? [],
+          notification,
+        );
+        sessionId = fallbackSession?.id;
+      } catch {
+        sessionId = "";
+      }
+    }
+
+    if (!sessionId) {
+      navigate("/study-sessions");
+      return;
+    }
+
+    if (!notification.read) await markRead(notification.id);
+    navigate(`/session/${sessionId}`);
   }
 
   const filtered = visibleNotifications.filter((n) => {
@@ -737,6 +947,14 @@ export default function NotificationPage() {
                             );
                             return;
                           }
+                          if (action.matchAction === "view") {
+                            await handleViewMatch(notif);
+                            return;
+                          }
+                          if (action.sessionAction === "view") {
+                            await handleViewSession(notif);
+                            return;
+                          }
                           if (!notif.read) {
                             await markRead(notif.id);
                           }
@@ -879,7 +1097,7 @@ function formatNotificationTime(createdAt, nowMs = Date.now()) {
 function getNotificationActions(type) {
   const t = normalizeBuddyNotificationType(type);
   if (t === "MATCH_GENERATED") {
-    return [{ label: "View Match", variant: "primary" }];
+    return [{ label: "View Match", variant: "primary", matchAction: "view" }];
   }
 
   if (t === "BUDDY_REQUEST_SENT") {
@@ -890,7 +1108,7 @@ function getNotificationActions(type) {
   }
 
   if (t === "SESSION_INVITATION" || t === "SESSION_CREATED") {
-    return [{ label: "View Session", variant: "primary" }];
+    return [{ label: "View Session", variant: "primary", sessionAction: "view" }];
   }
 
   return [];

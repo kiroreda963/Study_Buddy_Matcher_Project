@@ -4,6 +4,7 @@ const {
   getMatchById,
   getUserMatches,
   getBuddyRequests,
+  getOutgoingBuddyRequests,
   getConnections,
   sendBuddyRequest,
   acceptBuddyRequest,
@@ -32,6 +33,12 @@ const resolvers = {
         throw new Error("Unauthorized");
       }
       return getBuddyRequests(contextValue);
+    },
+    getOutgoingBuddyRequests: async (_, args, contextValue) => {
+      if (!contextValue.user?.userId) {
+        throw new Error("Unauthorized");
+      }
+      return getOutgoingBuddyRequests(contextValue);
     },
     getConnections: async (_, args, contextValue) => {
       if (!contextValue.user?.userId) {

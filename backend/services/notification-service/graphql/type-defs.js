@@ -5,12 +5,14 @@ enum NotificationType {
   SESSION_INVITATION
   BUDDY_REQUEST_SENT
   MATCH_GENERATED
+  SESSION_REMINDER
 }
 
 type Notification {
 id: ID!
 userId: String!
 senderId: String
+sessionId: String
 type: NotificationType!
 message: String!
 isRead: Boolean!

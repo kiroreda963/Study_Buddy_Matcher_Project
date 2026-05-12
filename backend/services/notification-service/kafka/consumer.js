@@ -4,7 +4,7 @@ require("dotenv").config();
 
 const kafka = new Kafka({
   clientId: "notification-service",
-  brokers: process.env.KAFKA_BROKERS.split(","),
+  brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
   connectionTimeout: 3000,
   requestTimeout: 3000,
   retry: {
@@ -47,6 +47,7 @@ const startConsumer = async () => {
           console.log(`✓ Event received: ${topic}`);
 
           // Process events based on topic
+          const payload = event.payload || event;
           switch (topic) {
             case "session-created":
               const formatDate = new Date(event.date).toLocaleString();
@@ -55,6 +56,7 @@ const startConsumer = async () => {
                 `Session created Successfully on ${formatDate}`,
                 null,
                 "SESSION_CREATED",
+                event.id,
               );
               // Cache the session for reminder checks
               sessionCache.set(event.id, {
@@ -81,24 +83,37 @@ const startConsumer = async () => {
               break;
             case "buddy-request-sent":
               console.log(event);
-              sendNotification(
-                event.payload.receiverId,
-                `You have received a buddy request`,
-                event.payload.senderId,
+              if (
+                event.eventName !== "BuddyRequestSent" ||
+                payload.status !== "PENDING"
+              ) {
+                console.log(
+                  `[buddy-request-sent] ignored non-new request event: ${event.eventName || "unknown"}`,
+                );
+                break;
+              }
+              await sendNotification(
+                payload.receiverId,
+                "You have received a buddy request",
+                payload.senderId,
                 "BUDDY_REQUEST_SENT",
+                null,
+                { dedupeBySender: true },
               );
               console.log(
-                `[buddy-request-recieved] userId: ${event.payload.receiverId}`,
+                `[buddy-request-received] userId: ${payload.receiverId}`,
               );
               break;
             case "match-generated":
-              sendNotification(
-                event.payload.userId,
-                `You have a new match!`,
-                event.payload.matchedUserId,
+              await sendNotification(
+                payload.userId,
+                "You have a new match!",
+                payload.matchedUserId,
                 "MATCH_GENERATED",
+                null,
+                { dedupeBySender: true },
               );
-              console.log(`[match-generated] userId: ${event.payload.userId}`);
+              console.log(`[match-generated] userId: ${payload.userId}`);
               break;
             default:
               console.log(`[unknown] ${topic}`);
@@ -122,8 +137,24 @@ const sendNotification = async (
   senderId,
   type,
   sessionId = null,
+  options = {},
 ) => {
   try {
+    if (options.dedupeBySender && senderId) {
+      const existing = await prisma.notification.findFirst({
+        where: {
+          userId,
+          senderId,
+          type,
+        },
+      });
+
+      if (existing) {
+        console.log(`Notification already exists for userId: ${userId}, senderId: ${senderId}, type: ${type}`);
+        return existing;
+      }
+    }
+
     await prisma.notification.create({
       data: {
         userId: userId,

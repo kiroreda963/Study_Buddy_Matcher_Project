@@ -35,7 +35,6 @@ const resolvers = {
       return await sessionController.createStudySession(
         args,
         context.user.userId,
-        args.inviteeId,
       );
     },
     updateStudySession: async (_, { id, ...data }, context) => {

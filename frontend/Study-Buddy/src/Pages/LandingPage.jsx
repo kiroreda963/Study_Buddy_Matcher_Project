@@ -127,10 +127,21 @@ const FOOTER_LINKS = {
 // ─── Mock auth state — replace with your real auth context ───────
 
 export default function LandingPage() {
-  const { isLoggedIn, user } = useAuth();
+  const { isAuthenticated, token, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const loggedIn = Boolean(isAuthenticated || token);
+  const userLabel = user?.name || user?.email || "User";
+  const userInitials =
+    user?.initials ||
+    userLabel
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() ||
+    "U";
 
   return (
     <>
@@ -434,13 +445,13 @@ export default function LandingPage() {
           Learn Together
         </div>
         <div className="nav-actions">
-          {isLoggedIn ? (
+          {loggedIn ? (
             <div
               className="profile-avatar"
               onClick={() => navigate("/dashboard")}
-              title={user.name}
+              title={userLabel}
             >
-              {user.initials}
+              {userInitials}
             </div>
           ) : (
             <>
@@ -476,9 +487,9 @@ export default function LandingPage() {
           </p>
           <button
             className="btn-get-started"
-            onClick={() => navigate("/register")}
+            onClick={() => navigate(loggedIn ? "/dashboard" : "/register")}
           >
-            Get Started
+            {loggedIn ? "Go to Dashboard" : "Get Started"}
           </button>
         </div>
         <div className="hero-right">

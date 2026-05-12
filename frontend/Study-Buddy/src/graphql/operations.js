@@ -136,6 +136,11 @@ export const CREATE_STUDY_SESSION = gql`
       id
       topic
       date
+      invitations {
+        id
+        inviteeId
+        status
+      }
     }
   }
 `;

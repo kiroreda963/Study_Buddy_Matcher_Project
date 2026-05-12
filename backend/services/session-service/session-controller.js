@@ -7,21 +7,42 @@ import {
 
 const sessionController = {
   // StudySession CRUD
-  async createStudySession(data, authorId, inviteeId) {
+  async createStudySession(data, authorId) {
+    const inviteeIds = Array.from(
+      new Set((data.participants || []).map(String).filter((id) => id && id !== authorId)),
+    );
+
     const session = await prisma.studySession.create({
       data: {
         topic: data.topic,
         authorId: authorId,
-        inviteeId: inviteeId,
         date: new Date(data.date),
         duration: data.duration,
         sessionType: data.sessionType,
         contactInfo: data.contactInfo,
-        participants: data.participants || [],
+        participants: [],
       },
+      include: { invitations: true },
     });
+
+    for (const inviteeId of inviteeIds) {
+      const invitation = await prisma.invitation.create({
+        data: {
+          authorId,
+          inviteeId,
+          sessionId: session.id,
+        },
+      });
+      await sendSessionInvitationEvent(invitation);
+    }
+
+    const sessionWithInvitations = await prisma.studySession.findUnique({
+      where: { id: session.id },
+      include: { invitations: true },
+    });
+
     await sendSessionCreatedEvent(session);
-    return session;
+    return sessionWithInvitations;
   },
 
   async getAllStudySessions() {
@@ -122,7 +143,7 @@ const sessionController = {
 
   async getInvitationsByUser(userId) {
     return await prisma.invitation.findMany({
-      where: { inviteeId: userId },
+      where: { inviteeId: userId, status: "PENDING" },
       include: {
         session: true,
       },
@@ -144,7 +165,11 @@ const sessionController = {
       where: { id },
     });
 
-    await joinStudySession(invitation.inviteeId, invitation.sessionId);
+    if (!invitation) {
+      throw new Error("Invitation not found");
+    }
+
+    await this.joinStudySession(invitation.inviteeId, invitation.sessionId);
     return await prisma.invitation.update({
       where: { id },
       data: { status: "ACCEPTED" },

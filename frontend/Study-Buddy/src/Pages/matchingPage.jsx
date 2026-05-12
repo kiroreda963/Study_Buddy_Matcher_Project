@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { gql } from "@apollo/client";
-import { authClient, matchingClient } from "../clients/apolloClients.jsx";
+import {
+  authClient,
+  matchingClient,
+  profileClient,
+} from "../clients/apolloClients.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import Navbar from "./Shared/Navbar.jsx";
 
@@ -44,41 +48,89 @@ const USER_PROFILE_QUERY = gql`
   }
 `;
 
+const GET_CONNECTIONS = gql`
+  query MatchingPageConnections {
+    getBuddyRequests {
+      id
+      senderId
+      receiverId
+      status
+    }
+    getOutgoingBuddyRequests {
+      id
+      senderId
+      receiverId
+      status
+    }
+    getConnections {
+      id
+      userId1
+      userId2
+    }
+  }
+`;
+
+const PROFILE_BY_ID_QUERY = gql`
+  query GetProfileById($userId: String!) {
+    getProfileById(userId: $userId) {
+      id
+      userId
+      university
+      academicYear
+      courses {
+        id
+        name
+      }
+      topics {
+        id
+        name
+      }
+      preferences {
+        studyPace
+        studyMode
+        groupSize
+        studyStyle
+      }
+    }
+  }
+`;
+
 const FILTER_DEFAULTS = {
-  roles: [],
-  styles: [],
-  meeting: [],
-  course: "",
-  groupSize: 0,
+  university: "",
+  academicYear: "",
+  courses: [],
+  topics: [],
+  studyPace: [],
+  studyMode: [],
+  groupSize: [],
+  studyStyle: [],
 };
 
-const ROLE_OPTIONS = [
-  ["software", "Software"],
-  ["arts", "Arts"],
-  ["law", "Law"],
-  ["cyber", "Cyber Security"],
-  ["business", "Business"],
-  ["medicine", "Medicine"],
+const ACADEMIC_YEAR_OPTIONS = ["Year 1", "Year 2", "Year 3", "Year 4", "Senior"];
+
+const STUDY_PACE_OPTIONS = [
+  ["slow", "Slow"],
+  ["moderate", "Moderate"],
+  ["fast", "Fast"],
 ];
 
-const STYLE_OPTIONS = [
-  ["discussion", "Discussion"],
-  ["writing", "Writing"],
-  ["quiet", "Quiet"],
-  ["listening", "Listening"],
-];
-
-const MEETING_OPTIONS = [
+const STUDY_MODE_OPTIONS = [
   ["online", "Online"],
-  ["inperson", "In-person"],
+  ["in-person", "In-Person"],
 ];
 
-const COURSE_OPTIONS = [
-  ["", "Choose course"],
-  ["course", "Shared courses"],
-  ["topic", "Shared topics"],
-  ["availability", "Overlapping availability"],
-  ["mode", "Same study mode"],
+const GROUP_SIZE_OPTIONS = [
+  ["solo", "Solo (1)"],
+  ["small", "Small (2-4)"],
+  ["large", "Large (5+)"],
+];
+
+const STUDY_STYLE_OPTIONS = [
+  ["notes", "Writing Notes"],
+  ["listening", "Listening"],
+  ["discussion", "Discussing Out Loud"],
+  ["quiet", "Studying Quietly"],
+  ["other", "Other"],
 ];
 
 function getStoredUserId(user) {
@@ -104,6 +156,7 @@ function getStoredOutgoingRequests(userId) {
   }
 }
 
+
 function storeOutgoingRequests(userId, requests) {
   if (!userId) return;
   localStorage.setItem(
@@ -119,8 +172,12 @@ function fallbackProfile(userId) {
   return {
     id: userId,
     name: `Study Buddy ${suffix}`,
-    university: "University student",
-    academic_year: "Junior",
+    university: "",
+    academicYear: "",
+    academic_year: "",
+    courses: [],
+    topics: [],
+    preferences: {},
   };
 }
 
@@ -140,95 +197,74 @@ function normalizeText(value) {
   return String(value || "").toLowerCase();
 }
 
-function inferField(profile, reasons) {
-  const haystack = normalizeText(
-    `${profile.name} ${profile.university} ${profile.academic_year} ${reasons.join(" ")}`,
-  );
-  if (haystack.includes("business")) return "Business";
-  if (haystack.includes("art")) return "Arts";
-  if (haystack.includes("law")) return "Law";
-  if (haystack.includes("medicine") || haystack.includes("medical"))
-    return "Medicine";
-  if (haystack.includes("cyber") || haystack.includes("security"))
-    return "Cyber Security";
-  return "Software";
-}
-
-function inferTags(reasons) {
-  const joined = normalizeText(reasons.join(" "));
-  const tags = [];
-  if (joined.includes("course")) tags.push("Courses");
-  if (joined.includes("topic")) tags.push("Topics");
-  if (joined.includes("availability")) tags.push("Online");
-  if (joined.includes("mode")) tags.push("Mode");
-  if (joined.includes("style")) tags.push("Style");
-  if (joined.includes("pace")) tags.push("Pace");
-  return tags.length > 0 ? tags : ["Availability", "Study Style"];
-}
-
 function checkboxValue(list, value, checked) {
   if (checked) return Array.from(new Set([...list, value]));
   return list.filter((item) => item !== value);
 }
 
-function Header() {
-  return (
-    <header className="match-header">
-      <Link to="/dashboard" className="brand-link">
-        Learn Together
-      </Link>
-      <nav className="header-nav" aria-label="Primary navigation">
-        <Link to="/dashboard">Home</Link>
-        <Link to="/dashboard">Dashboard</Link>
-        <Link to="/matches" className="active">
-          Matches
-        </Link>
-        <Link to="/dashboard">Study Sessions</Link>
-        <Link to="/dashboard">About Us</Link>
-      </nav>
-      <div className="header-actions">
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="Notifications"
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#55c7a0"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-          <span className="notification-dot">1</span>
-        </button>
-        <button
-          className="icon-button profile-circle"
-          type="button"
-          aria-label="Profile"
-        >
-          <svg
-            width="23"
-            height="23"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#111"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 21a8 8 0 0 0-16 0" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </button>
-      </div>
-    </header>
+function getItemNames(items) {
+  return (items || [])
+    .map((item) => item?.name)
+    .filter(Boolean)
+    .map((name) => String(name));
+}
+
+function uniqueSorted(values) {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b),
   );
+}
+
+function formatList(values, fallback) {
+  const clean = values.filter(Boolean);
+  if (clean.length === 0) return fallback;
+  if (clean.length <= 2) return clean.join(", ");
+  return `${clean.slice(0, 2).join(", ")} +${clean.length - 2}`;
+}
+
+function preferenceLabel(options, value, fallback = "Not set") {
+  if (!value) return fallback;
+  return options.find(([optionValue]) => optionValue === value)?.[1] || value;
+}
+
+function buildProfileTags(profile) {
+  const courses = getItemNames(profile.courses);
+  const topics = getItemNames(profile.topics);
+  const preferences = profile.preferences || {};
+  return [
+    courses[0],
+    topics[0],
+    preferenceLabel(STUDY_MODE_OPTIONS, preferences.studyMode, ""),
+    preferenceLabel(STUDY_STYLE_OPTIONS, preferences.studyStyle, ""),
+  ].filter(Boolean);
+}
+
+function getConnectedUserIds(connections, currentUserId) {
+  const current = String(currentUserId || "");
+  const ids = new Set();
+  connections.forEach((connection) => {
+    if (String(connection.userId1) === current) {
+      ids.add(String(connection.userId2));
+    } else if (String(connection.userId2) === current) {
+      ids.add(String(connection.userId1));
+    }
+  });
+  return ids;
+}
+
+function getPendingRequestUserIds(requests, currentUserId) {
+  const current = String(currentUserId || "");
+  const ids = new Set();
+  requests.forEach((request) => {
+    if (request.status !== "PENDING") return;
+    if (String(request.senderId) === current) {
+      ids.add(String(request.receiverId));
+    }
+    if (String(request.receiverId) === current) {
+      ids.add(String(request.senderId));
+    }
+  });
+  return ids;
 }
 
 function Footer() {
@@ -258,7 +294,7 @@ function Footer() {
               type="button"
               aria-label="Play testimonial"
             >
-              ▶
+              &gt;
             </button>
           </div>
         </section>
@@ -301,14 +337,14 @@ function Footer() {
               aria-label="Email address"
             />
             <button className="send-btn" type="submit" aria-label="Subscribe">
-              ›
+              &gt;
             </button>
           </form>
         </section>
       </div>
 
       <div className="footer-bottom">
-        <span>© 2026 Study Together Inc. Copyright and rights reserved</span>
+        <span>(c) 2026 Study Together Inc. Copyright and rights reserved</span>
         <div className="legal-links">
           <a>Terms and Conditions</a>
           <a>Privacy Policy</a>
@@ -323,7 +359,7 @@ function FilterBox({ title, children }) {
     <section className="filter-box">
       <button className="filter-title" type="button">
         <span>{title}</span>
-        <span aria-hidden="true">⌄</span>
+        <span aria-hidden="true">v</span>
       </button>
       {children}
     </section>
@@ -343,65 +379,118 @@ function CheckOption({ checked, label, onChange }) {
   );
 }
 
-function MatchCard({ match, onSend, busy }) {
+function selectedSummary(selected, fallback) {
+  if (!selected.length) return fallback;
+  if (selected.length === 1) return selected[0];
+  return `${selected.length} selected`;
+}
+
+function MultiSelectDropdown({ label, options, selected, emptyText, onChange }) {
+  return (
+    <details className="multi-select">
+      <summary>{selectedSummary(selected, label)}</summary>
+      <div className="multi-options">
+        {options.length === 0 ? (
+          <span className="empty-filter">{emptyText}</span>
+        ) : (
+          options.map((option) => (
+            <CheckOption
+              key={option}
+              label={option}
+              checked={selected.includes(option)}
+              onChange={(checked) => onChange(option, checked)}
+            />
+          ))
+        )}
+      </div>
+    </details>
+  );
+}
+
+function MatchCard({ match, onSend, busy, onViewMatch }) {
+  const profile = match.profile;
+  const preferences = profile.preferences || {};
+  const courses = getItemNames(profile.courses);
+  const topics = getItemNames(profile.topics);
+  const reasons = match.reasons || [];
+  const metaLine = [
+    profile.university,
+    profile.academicYear || profile.academic_year,
+  ]
+    .filter(Boolean)
+    .join(" - ");
+
   return (
     <article className="match-card">
       <div className="card-top">
-        <div className="student-mark">{initials(match.profile.name)}</div>
+        <div className="student-mark">{initials(profile.name)}</div>
         <div className="student-main">
-          <h3>{match.profile.name}</h3>
-          <p>
-            {match.profile.university || "University student"} ·{" "}
-            {match.profile.academic_year || "Student"}
-          </p>
+          <h3>{profile.name}</h3>
+          <p>{metaLine || "Study profile details not set"}</p>
         </div>
         <span className="score-pill">{Math.round(match.score)}%</span>
       </div>
 
       <div className="details-grid">
-        <span>• {match.field}</span>
-        <span>• {match.primaryStyle}</span>
-        <span>• {match.secondaryStyle}</span>
-        <span>• {match.meetingLabel}</span>
+        <span>Courses: {formatList(courses, "No courses")}</span>
+        <span>Topics: {formatList(topics, "No topics")}</span>
+        <span>
+          Pace: {preferenceLabel(STUDY_PACE_OPTIONS, preferences.studyPace)}
+        </span>
+        <span>
+          Mode: {preferenceLabel(STUDY_MODE_OPTIONS, preferences.studyMode)}
+        </span>
+        <span>
+          Group: {preferenceLabel(GROUP_SIZE_OPTIONS, preferences.groupSize)}
+        </span>
+        <span>
+          Style: {preferenceLabel(STUDY_STYLE_OPTIONS, preferences.studyStyle)}
+        </span>
       </div>
 
       <div className="tag-row">
-        {match.tags.slice(0, 2).map((tag, index) => (
-          <span
-            key={tag}
-            className={`match-tag ${index === 0 ? "warm" : "dark"}`}
-          >
-            {tag}
-          </span>
-        ))}
+        {(match.tags.length ? match.tags : reasons)
+          .slice(0, 3)
+          .map((tag, index) => (
+            <span
+              key={tag}
+              className={`match-tag ${index === 0 ? "warm" : "dark"}`}
+            >
+              {tag}
+            </span>
+          ))}
       </div>
 
       <div className="time-row">
         <span className="calendar-icon" aria-hidden="true">
-          ▣
+          -
         </span>
-        <span>{match.availabilityLabel}</span>
+        <span>{formatList(reasons, "Matched from profile compatibility")}</span>
       </div>
 
       <div className="card-actions">
-        <button className="outline-action" type="button">
+        <button className="outline-action" type="button" onClick={() => onViewMatch(match)}>
           View Profile
         </button>
         <button
           className="green-action"
           type="button"
-          disabled={busy || match.sent}
+          disabled={busy || match.sent || match.connected}
           onClick={() => onSend(match.buddyId)}
         >
-          {match.sent ? "Sent" : "Send Request"}
+          {match.connected
+            ? "Connected"
+            : match.sent
+              ? "Request Pending"
+              : "Send Request"}
         </button>
       </div>
     </article>
   );
 }
-
 export default function MatchingPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const currentUserId = getStoredUserId(user);
   const [matches, setMatches] = useState([]);
   const [profiles, setProfiles] = useState({});
@@ -411,6 +500,8 @@ export default function MatchingPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
+  const [connectedIds, setConnectedIds] = useState(() => new Set());
+  const [pendingIds, setPendingIds] = useState(() => new Set());
   const [sentIds, setSentIds] = useState(
     () =>
       new Set(
@@ -425,32 +516,77 @@ export default function MatchingPage() {
     setError("");
 
     try {
-      const { data } = await matchingClient.query({
-        query: GET_USER_MATCHES,
-        fetchPolicy: "network-only",
-      });
+      const [{ data }, connectionsResult] = await Promise.all([
+        matchingClient.query({
+          query: GET_USER_MATCHES,
+          fetchPolicy: "network-only",
+        }),
+        matchingClient.query({
+          query: GET_CONNECTIONS,
+          fetchPolicy: "network-only",
+        }),
+      ]);
       const nextMatches = data?.getUserMatches || [];
       setMatches(nextMatches);
+      setConnectedIds(
+        getConnectedUserIds(
+          connectionsResult.data?.getConnections || [],
+          currentUserId,
+        ),
+      );
+      setPendingIds(
+        getPendingRequestUserIds(
+          [
+            ...(connectionsResult.data?.getBuddyRequests || []),
+            ...(connectionsResult.data?.getOutgoingBuddyRequests || []),
+          ],
+          currentUserId,
+        ),
+      );
 
-      const ids = nextMatches
+      const ids = Array.from(new Set(nextMatches
         .map((match) =>
           match.userId === currentUserId ? match.matchedUserId : match.userId,
         )
-        .filter(Boolean);
+        .filter(Boolean)));
       const loadedProfiles = {};
       await Promise.all(
         ids.map(async (id) => {
-          try {
-            const result = await authClient.query({
+          const [authResult, profileResult] = await Promise.allSettled([
+            authClient.query({
               query: USER_PROFILE_QUERY,
               variables: { userId: id },
               fetchPolicy: "network-only",
-            });
-            loadedProfiles[id] =
-              result.data?.getUserProfile || fallbackProfile(id);
-          } catch {
-            loadedProfiles[id] = fallbackProfile(id);
-          }
+            }),
+            profileClient.query({
+              query: PROFILE_BY_ID_QUERY,
+              variables: { userId: id },
+              fetchPolicy: "network-only",
+            }),
+          ]);
+          const authProfile =
+            authResult.status === "fulfilled"
+              ? authResult.value.data?.getUserProfile
+              : null;
+          const studyProfile =
+            profileResult.status === "fulfilled"
+              ? profileResult.value.data?.getProfileById
+              : null;
+          const fallback = fallbackProfile(id);
+          loadedProfiles[id] = {
+            ...fallback,
+            ...studyProfile,
+            id,
+            name: authProfile?.name || fallback.name,
+            university: studyProfile?.university || authProfile?.university || "",
+            academicYear:
+              studyProfile?.academicYear || authProfile?.academic_year || "",
+            academic_year:
+              studyProfile?.academicYear || authProfile?.academic_year || "",
+            courses: studyProfile?.courses || [],
+            topics: studyProfile?.topics || [],
+            preferences: studyProfile?.preferences || {},
+          };
         }),
       );
 
@@ -478,75 +614,84 @@ export default function MatchingPage() {
           const buddyId =
             match.userId === currentUserId ? match.matchedUserId : match.userId;
           const profile = profiles[buddyId] || fallbackProfile(buddyId);
-          const reasons = match.reasons || [];
-          const tags = inferTags(reasons);
-          const field = inferField(profile, reasons);
           return {
             ...match,
             buddyId,
             profile,
-            field,
-            fieldKey: normalizeText(field).split(" ")[0],
-            primaryStyle: reasons[0] || "Focused study",
-            secondaryStyle: reasons[1] || "Good match",
-            meetingLabel: reasons.some((reason) =>
-              normalizeText(reason).includes("availability"),
-            )
-              ? "Online"
-              : "Flexible",
-            availabilityLabel: reasons.some((reason) =>
-              normalizeText(reason).includes("availability"),
-            )
-              ? "Tue, Thu 3-7 PM"
-              : "Wed, Fri 3-7 PM",
-            tags,
-            sent: sentIds.has(buddyId),
+            tags: buildProfileTags(profile),
+            sent: sentIds.has(buddyId) || pendingIds.has(buddyId),
+            connected: connectedIds.has(buddyId),
             order: index,
           };
         }),
-    [currentUserId, matches, profiles, sentIds],
+    [connectedIds, currentUserId, matches, pendingIds, profiles, sentIds],
   );
+
+  const filterOptions = useMemo(() => {
+    const courses = [];
+    const topics = [];
+    const universities = [];
+
+    decoratedMatches.forEach((match) => {
+      courses.push(...getItemNames(match.profile.courses));
+      topics.push(...getItemNames(match.profile.topics));
+      if (match.profile.university) universities.push(match.profile.university);
+    });
+
+    return {
+      courses: uniqueSorted(courses),
+      topics: uniqueSorted(topics),
+      universities: uniqueSorted(universities),
+    };
+  }, [decoratedMatches]);
 
   const visibleMatches = useMemo(() => {
     const filtered = decoratedMatches.filter((match) => {
-      const reasonText = normalizeText(match.reasons.join(" "));
-      const profileText = normalizeText(
-        `${match.profile.name} ${match.profile.university} ${match.profile.academic_year}`,
-      );
-      const selectedRoles = appliedFilters.roles;
-      const selectedStyles = appliedFilters.styles;
-      const selectedMeeting = appliedFilters.meeting;
-
-      const roleMatch =
-        selectedRoles.length === 0 ||
-        selectedRoles.some(
-          (role) =>
-            profileText.includes(role) ||
-            normalizeText(match.field).includes(role),
+      const profile = match.profile;
+      const preferences = profile.preferences || {};
+      const courses = getItemNames(profile.courses).map(normalizeText);
+      const topics = getItemNames(profile.topics).map(normalizeText);
+      const year = profile.academicYear || profile.academic_year || "";
+      const universityMatch =
+        !appliedFilters.university ||
+        normalizeText(profile.university).includes(
+          normalizeText(appliedFilters.university),
         );
+      const yearMatch =
+        !appliedFilters.academicYear ||
+        normalizeText(year) === normalizeText(appliedFilters.academicYear);
       const courseMatch =
-        !appliedFilters.course || reasonText.includes(appliedFilters.course);
+        appliedFilters.courses.length === 0 ||
+        appliedFilters.courses.some((course) =>
+          courses.includes(normalizeText(course)),
+        );
+      const topicMatch =
+        appliedFilters.topics.length === 0 ||
+        appliedFilters.topics.some((topic) =>
+          topics.includes(normalizeText(topic)),
+        );
+      const paceMatch =
+        appliedFilters.studyPace.length === 0 ||
+        appliedFilters.studyPace.includes(preferences.studyPace);
+      const modeMatch =
+        appliedFilters.studyMode.length === 0 ||
+        appliedFilters.studyMode.includes(preferences.studyMode);
+      const groupMatch =
+        appliedFilters.groupSize.length === 0 ||
+        appliedFilters.groupSize.includes(preferences.groupSize);
       const styleMatch =
-        selectedStyles.length === 0 ||
-        selectedStyles.some(
-          (style) =>
-            reasonText.includes(style) ||
-            match.tags.some((tag) => normalizeText(tag).includes(style)),
-        );
-      const meetingMatch =
-        selectedMeeting.length === 0 ||
-        selectedMeeting.some(
-          (meeting) =>
-            normalizeText(match.meetingLabel).includes(
-              meeting === "inperson" ? "in" : meeting,
-            ) || reasonText.includes(meeting),
-        );
-      const scoreMatch =
-        appliedFilters.groupSize === 0 ||
-        match.score >= Math.max(0, appliedFilters.groupSize - 2) * 5;
+        appliedFilters.studyStyle.length === 0 ||
+        appliedFilters.studyStyle.includes(preferences.studyStyle);
 
       return (
-        roleMatch && courseMatch && styleMatch && meetingMatch && scoreMatch
+        universityMatch &&
+        yearMatch &&
+        courseMatch &&
+        topicMatch &&
+        paceMatch &&
+        modeMatch &&
+        groupMatch &&
+        styleMatch
       );
     });
 
@@ -586,6 +731,21 @@ export default function MatchingPage() {
       setBusyId("");
     }
   };
+
+  const handleViewMatch = useCallback(async (match) => {
+    setError("");
+
+    if (!match?.id) {
+      setError("Could not open match. Missing match information.");
+      return;
+    }
+
+    try {
+      navigate(`/match/${match.id}`);
+    } catch (err) {
+      setError(err.message || "Could not open match.");
+    }
+  }, []);
 
   const resetFilters = () => {
     setFilters(FILTER_DEFAULTS);
@@ -633,7 +793,19 @@ export default function MatchingPage() {
         .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 21px; margin-top: 14px; }
         .check-option { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; color: #1f2926; min-width: 0; }
         .check-option input { width: 18px; height: 18px; accent-color: #55c7a0; flex: 0 0 auto; }
+        .filter-input { margin-top: 13px; width: 100%; height: 40px; border-radius: 7px; border: 1px solid #ccd8d5; background: white; color: #111; font-size: 14px; font-weight: 700; padding: 0 11px; outline: none; }
+        .filter-input::placeholder { color: #8a9693; }
         .course-select { margin-top: 13px; width: 100%; height: 40px; border-radius: 7px; border: 1px solid #ccd8d5; background: white; color: #7a8582; font-size: 14px; padding: 0 11px; }
+        .multi-select { position: relative; margin-top: 13px; }
+        .multi-select summary { height: 40px; border-radius: 7px; border: 1px solid #ccd8d5; background: white; color: #52605c; font-size: 14px; font-weight: 800; padding: 0 11px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+        .multi-select summary::-webkit-details-marker { display: none; }
+        .multi-select summary::after { content: "v"; color: #7a8582; font-size: 12px; }
+        .multi-options { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; right: 0; max-height: 240px; overflow-y: auto; border: 1px solid #ccd8d5; border-radius: 8px; background: white; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14); padding: 12px; display: grid; gap: 10px; }
+        .multi-options .check-option { font-size: 13px; }
+        .preference-group { margin-top: 15px; }
+        .preference-label { color: #52605c; font-size: 13px; font-weight: 900; margin-bottom: 10px; }
+        .preference-group .check-grid { margin-top: 0; }
+        .empty-filter { color: #8a9693; font-size: 13px; font-weight: 800; }
         .group-label { display: flex; align-items: center; justify-content: space-between; margin: 13px 0 5px; color: #7b8784; font-size: 13px; font-weight: 800; }
         .group-slider { width: 100%; accent-color: #55c7a0; }
         .group-scale { display: flex; justify-content: space-between; color: #a3adaa; font-size: 12px; font-weight: 700; }
@@ -762,113 +934,160 @@ export default function MatchingPage() {
                   <span>Filters</span>
                 </div>
 
-                <FilterBox title="Role / Field">
-                  <div className="check-grid">
-                    {ROLE_OPTIONS.map(([value, label]) => (
-                      <CheckOption
-                        key={value}
-                        label={label}
-                        checked={filters.roles.includes(value)}
-                        onChange={(checked) =>
-                          setFilters((current) => ({
-                            ...current,
-                            roles: checkboxValue(current.roles, value, checked),
-                          }))
-                        }
-                      />
-                    ))}
-                  </div>
-                </FilterBox>
-
-                <FilterBox title="Courses">
-                  <select
-                    className="course-select"
-                    value={filters.course}
+                <FilterBox title="Profile Details">
+                  <input
+                    className="filter-input"
+                    type="search"
+                    placeholder="University"
+                    value={filters.university}
                     onChange={(event) =>
                       setFilters((current) => ({
                         ...current,
-                        course: event.target.value,
+                        university: event.target.value,
+                      }))
+                    }
+                  />
+                  <select
+                    className="course-select"
+                    value={filters.academicYear}
+                    onChange={(event) =>
+                      setFilters((current) => ({
+                        ...current,
+                        academicYear: event.target.value,
                       }))
                     }
                   >
-                    {COURSE_OPTIONS.map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
+                    <option value="">Any academic year</option>
+                    {ACADEMIC_YEAR_OPTIONS.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
                       </option>
                     ))}
                   </select>
                 </FilterBox>
 
-                <FilterBox title="Study Style">
-                  <div className="check-grid">
-                    {STYLE_OPTIONS.map(([value, label]) => (
-                      <CheckOption
-                        key={value}
-                        label={label}
-                        checked={filters.styles.includes(value)}
-                        onChange={(checked) =>
-                          setFilters((current) => ({
-                            ...current,
-                            styles: checkboxValue(
-                              current.styles,
-                              value,
-                              checked,
-                            ),
-                          }))
-                        }
-                      />
-                    ))}
-                  </div>
-                </FilterBox>
-
-                <FilterBox title="Meeting Type">
-                  <div className="check-grid">
-                    {MEETING_OPTIONS.map(([value, label]) => (
-                      <CheckOption
-                        key={value}
-                        label={label}
-                        checked={filters.meeting.includes(value)}
-                        onChange={(checked) =>
-                          setFilters((current) => ({
-                            ...current,
-                            meeting: checkboxValue(
-                              current.meeting,
-                              value,
-                              checked,
-                            ),
-                          }))
-                        }
-                      />
-                    ))}
-                  </div>
-                </FilterBox>
-
-                <FilterBox title="Group Size">
-                  <div className="group-label">
-                    <span>
-                      {filters.groupSize === 0
-                        ? "Any size"
-                        : `${filters.groupSize} students`}
-                    </span>
-                    <span>12 students</span>
-                  </div>
-                  <input
-                    className="group-slider"
-                    type="range"
-                    min="0"
-                    max="12"
-                    value={filters.groupSize}
-                    onChange={(event) =>
+                <FilterBox title="Courses">
+                  <MultiSelectDropdown
+                    label="Select courses"
+                    options={filterOptions.courses}
+                    selected={filters.courses}
+                    emptyText="No courses listed"
+                    onChange={(course, checked) =>
                       setFilters((current) => ({
                         ...current,
-                        groupSize: Number(event.target.value),
+                        courses: checkboxValue(
+                          current.courses,
+                          course,
+                          checked,
+                        ),
                       }))
                     }
                   />
-                  <div className="group-scale">
-                    <span>Any</span>
-                    <span>6</span>
-                    <span>12</span>
+                </FilterBox>
+
+                <FilterBox title="Topics">
+                  <MultiSelectDropdown
+                    label="Select topics"
+                    options={filterOptions.topics}
+                    selected={filters.topics}
+                    emptyText="No topics listed"
+                    onChange={(topic, checked) =>
+                      setFilters((current) => ({
+                        ...current,
+                        topics: checkboxValue(current.topics, topic, checked),
+                      }))
+                    }
+                  />
+                </FilterBox>
+
+                <FilterBox title="Study Preferences">
+                  <div className="preference-group">
+                    <div className="preference-label">Pace</div>
+                    <div className="check-grid">
+                      {STUDY_PACE_OPTIONS.map(([value, label]) => (
+                        <CheckOption
+                          key={value}
+                          label={label}
+                          checked={filters.studyPace.includes(value)}
+                          onChange={(checked) =>
+                            setFilters((current) => ({
+                              ...current,
+                              studyPace: checkboxValue(
+                                current.studyPace,
+                                value,
+                                checked,
+                              ),
+                            }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="preference-group">
+                    <div className="preference-label">Mode</div>
+                    <div className="check-grid">
+                      {STUDY_MODE_OPTIONS.map(([value, label]) => (
+                        <CheckOption
+                          key={value}
+                          label={label}
+                          checked={filters.studyMode.includes(value)}
+                          onChange={(checked) =>
+                            setFilters((current) => ({
+                              ...current,
+                              studyMode: checkboxValue(
+                                current.studyMode,
+                                value,
+                                checked,
+                              ),
+                            }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="preference-group">
+                    <div className="preference-label">Group Size</div>
+                    <div className="check-grid">
+                      {GROUP_SIZE_OPTIONS.map(([value, label]) => (
+                        <CheckOption
+                          key={value}
+                          label={label}
+                          checked={filters.groupSize.includes(value)}
+                          onChange={(checked) =>
+                            setFilters((current) => ({
+                              ...current,
+                              groupSize: checkboxValue(
+                                current.groupSize,
+                                value,
+                                checked,
+                              ),
+                            }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="preference-group">
+                    <div className="preference-label">Study Style</div>
+                    <div className="check-grid">
+                      {STUDY_STYLE_OPTIONS.map(([value, label]) => (
+                        <CheckOption
+                          key={value}
+                          label={label}
+                          checked={filters.studyStyle.includes(value)}
+                          onChange={(checked) =>
+                            setFilters((current) => ({
+                              ...current,
+                              studyStyle: checkboxValue(
+                                current.studyStyle,
+                                value,
+                                checked,
+                              ),
+                            }))
+                          }
+                        />
+                      ))}
+                    </div>
                   </div>
                 </FilterBox>
 
@@ -934,6 +1153,7 @@ export default function MatchingPage() {
                         match={match}
                         busy={busyId === match.buddyId}
                         onSend={handleSendRequest}
+                        onViewMatch={handleViewMatch}
                       />
                     ))}
                   </div>

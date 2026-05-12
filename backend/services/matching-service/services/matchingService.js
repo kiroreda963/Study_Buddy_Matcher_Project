@@ -2,6 +2,34 @@ const { prisma } = require("../db/prisma");
 const { calculateScore } = require("../utils/matchingUtils");
 const { publishEvent } = require("../kafka/producer");
 
+function normalizeMatchPair(userId, matchedUserId) {
+  return String(userId) < String(matchedUserId)
+    ? { userId: String(userId), matchedUserId: String(matchedUserId) }
+    : { userId: String(matchedUserId), matchedUserId: String(userId) };
+}
+
+async function publishNewMatchNotifications(match) {
+  const recipients = [
+    { userId: match.userId, matchedUserId: match.matchedUserId },
+    { userId: match.matchedUserId, matchedUserId: match.userId },
+  ];
+
+  for (const recipient of recipients) {
+    await publishEvent("match-generated", {
+      eventName: "MatchGenerated",
+      timestamp: new Date().toISOString(),
+      producerService: "matching-service",
+      correlationId: `${match.userId}-${match.matchedUserId}`,
+      payload: {
+        userId: recipient.userId,
+        matchedUserId: recipient.matchedUserId,
+        score: match.score,
+        reasons: match.reasons
+      },
+    });
+  }
+}
+
 async function upsertProfileProjectionFromProfileService(contextOrUserId, profilePayload = null) {
   const userId =
     typeof contextOrUserId === "string"
@@ -77,8 +105,9 @@ async function upsertProfileProjectionFromProfileService(contextOrUserId, profil
     },
   });
 }
-async function generateMatchesForUser(context) {
+async function generateMatchesForUser(context, options = {}) {
   const userId = context.user?.userId;
+  const shouldNotify = options.notify !== false;
   if (!userId) {
     throw new Error("User not authenticated");
   }
@@ -113,40 +142,35 @@ async function generateMatchesForUser(context) {
     const { score, reasons } = calculateScore(currentUser, other);
 
     if (score >= 30) {
-      const match = await prisma.match.upsert({
+      const pair = normalizeMatchPair(userId, other.userId);
+      const existingMatch = await prisma.match.findFirst({
         where: {
-          userId_matchedUserId: {
-            userId,
-            matchedUserId: other.userId
-          }
-        },
-        update: {
-          score,
-          reasons
-        },
-        create: {
-          userId,
-          matchedUserId: other.userId,
-          score,
-          reasons
+          OR: [
+            { userId, matchedUserId: other.userId },
+            { userId: other.userId, matchedUserId: userId }
+          ]
         }
       });
 
+      const match = existingMatch
+        ? await prisma.match.update({
+            where: { id: existingMatch.id },
+            data: { score, reasons }
+          })
+        : await prisma.match.create({
+            data: {
+              userId: pair.userId,
+              matchedUserId: pair.matchedUserId,
+              score,
+              reasons
+            }
+          });
+
       savedMatches.push(match);
 
-      // Publish Kafka event for match generation
-      await publishEvent("match-generated", {
-        eventName: "MatchGenerated",
-        timestamp: new Date().toISOString(),
-        producerService: "matching-service",
-        correlationId: `${userId}-${other.userId}-${Date.now()}`,
-        payload: {
-          userId,
-          matchedUserId: other.userId,
-          score,
-          reasons
-        },
-      });
+      if (!existingMatch && shouldNotify) {
+        await publishNewMatchNotifications(match);
+      }
     }
   }
 
@@ -212,7 +236,7 @@ async function getUserMatches(context) {
     throw new Error("User not authenticated");
   }
   
-  return prisma.match.findMany({
+  const matches = await prisma.match.findMany({
     where: {
       OR: [
         { userId: userId },
@@ -221,6 +245,17 @@ async function getUserMatches(context) {
     },
     orderBy: { score: "desc" }
   });
+
+  const matchesByBuddyId = new Map();
+  for (const match of matches) {
+    const buddyId = match.userId === userId ? match.matchedUserId : match.userId;
+    const current = matchesByBuddyId.get(buddyId);
+    if (!current || match.score > current.score) {
+      matchesByBuddyId.set(buddyId, match);
+    }
+  }
+
+  return Array.from(matchesByBuddyId.values());
 }
 
 async function recalculateMatches(context) {
@@ -236,6 +271,21 @@ async function getBuddyRequests(context) {
   return prisma.buddyRequest.findMany({
     where: {
       receiverId: userId,
+      status: 'PENDING'
+    },
+    orderBy: { createdAt: "desc" }
+  });
+}
+
+async function getOutgoingBuddyRequests(context) {
+  const userId = context.user?.userId;
+  if (!userId) {
+    throw new Error("User not authenticated");
+  }
+
+  return prisma.buddyRequest.findMany({
+    where: {
+      senderId: userId,
       status: 'PENDING'
     },
     orderBy: { createdAt: "desc" }
@@ -271,9 +321,11 @@ async function sendBuddyRequest(context, receiverId) {
   
   const existingRequest = await prisma.buddyRequest.findFirst({
     where: {
-      senderId: senderId,
-      receiverId: receiverId,
-      status: { in: ['PENDING', 'ACCEPTED'] }
+      status: { in: ['PENDING', 'ACCEPTED'] },
+      OR: [
+        { senderId, receiverId },
+        { senderId: receiverId, receiverId: senderId }
+      ]
     }
   });
   
@@ -558,6 +610,7 @@ module.exports = {
   getMatchById,
   getUserMatches,
   getBuddyRequests,
+  getOutgoingBuddyRequests,
   getConnections,
   sendBuddyRequest,
   acceptBuddyRequest,

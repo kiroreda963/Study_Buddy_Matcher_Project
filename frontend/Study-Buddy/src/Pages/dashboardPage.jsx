@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  book,
   calendar,
   home,
   logouticon,
@@ -70,17 +69,20 @@ const GET_USER_DISPLAY_NAME = gql`
   }
 `;
 
-const JOIN_STUDY_SESSION = gql`
-  mutation JoinStudySession($sessionId: ID!) {
-    joinStudySession(sessionId: $sessionId) {
+const ACCEPT_INVITATION = gql`
+  mutation AcceptInvitation($id: ID!) {
+    acceptInvitation(id: $id) {
       id
+      status
     }
   }
 `;
-const DELETE_INVITATION = gql`
-  mutation DeleteInvitation($deleteInvitationId: ID!) {
-    deleteInvitation(id: $deleteInvitationId) {
+
+const REJECT_INVITATION = gql`
+  mutation RejectInvitation($id: ID!) {
+    rejectInvitation(id: $id) {
       id
+      status
     }
   }
 `;
@@ -89,6 +91,7 @@ const GENERATE_MATCHES = gql`
   mutation generateMatches {
     generateMatches {
       id
+      userId
       ignored
       score
       matchedUserId
@@ -136,6 +139,32 @@ const GET_BUDDY_REQUESTS = gql`
   }
 `;
 
+function getBuddyStateSets(buddyRequests, connections, currentUserId) {
+  const current = String(currentUserId || "");
+  const pendingUserIds = new Set();
+  const connectedUserIds = new Set();
+
+  buddyRequests.forEach((req) => {
+    if (req.status && req.status !== "PENDING") return;
+    if (String(req.senderId) === current) {
+      pendingUserIds.add(String(req.receiverId));
+    }
+    if (String(req.receiverId) === current) {
+      pendingUserIds.add(String(req.senderId));
+    }
+  });
+
+  connections.forEach((conn) => {
+    if (String(conn.userId1) === current) {
+      connectedUserIds.add(String(conn.userId2));
+    } else if (String(conn.userId2) === current) {
+      connectedUserIds.add(String(conn.userId1));
+    }
+  });
+
+  return { pendingUserIds, connectedUserIds };
+}
+
 // ── Constants ───────────────────────────────────────────────────
 const HERO_IMAGE_URL = "https://i.ibb.co/nMXjdQgV/Untitled.png";
 
@@ -158,6 +187,17 @@ const tagColor = (tag) => {
   if (tag === "ONLINE") return { bg: "#d1fae5", color: "#059669" };
   return { bg: "#fce7f3", color: "#be185d" };
 };
+
+function getOtherMatchUserId(match, currentUserId) {
+  const current = String(currentUserId || "");
+  const userId = String(match?.userId || "");
+  const matchedUserId = String(match?.matchedUserId || "");
+
+  if (!current) return matchedUserId || userId;
+  if (userId === current) return matchedUserId;
+  if (matchedUserId === current) return userId;
+  return matchedUserId || userId;
+}
 
 // ── Avatar placeholder ───────────────────────────────────────────
 function Avatar({ size = 36 }) {
@@ -202,6 +242,12 @@ function SearchPage({ query, onBack }) {
     setLoading(true);
     setError("");
     try {
+      const meResponse = await authClient.query({ query: ME_QUERY });
+      const currentUserId = meResponse.data?.me?.id;
+      if (!currentUserId) {
+        throw new Error("Could not determine current user");
+      }
+
       const { data, errors } = await matchingClient.mutate({
         mutation: GENERATE_MATCHES,
       });
@@ -214,7 +260,8 @@ function SearchPage({ query, onBack }) {
 
       const enriched = await Promise.all(
         active.map(async (m) => {
-          const uid = String(m.matchedUserId);
+          const uid = getOtherMatchUserId(m, currentUserId);
+          if (!uid || uid === String(currentUserId)) return null;
           try {
             const [profileRes, authRes] = await Promise.all([
               profileClient.query({
@@ -230,7 +277,7 @@ function SearchPage({ query, onBack }) {
             const name = authRes.data?.getUserProfile?.name ?? "Unknown";
             return {
               id: m.id,
-              matchedUserId: m.matchedUserId,
+              matchedUserId: uid,
               name,
               university: p?.university ?? "—",
               academicYear: p?.academicYear ?? "",
@@ -239,7 +286,7 @@ function SearchPage({ query, onBack }) {
           } catch {
             return {
               id: m.id,
-              matchedUserId: m.matchedUserId,
+              matchedUserId: uid,
               name: "Unknown",
               university: "—",
               academicYear: "",
@@ -250,6 +297,7 @@ function SearchPage({ query, onBack }) {
       );
 
       const filtered = enriched.filter((r) => {
+        if (!r) return false;
         const hay = `${r.name} ${r.university} ${r.academicYear}`.toLowerCase();
         return hay.includes(needle);
       });
@@ -264,7 +312,10 @@ function SearchPage({ query, onBack }) {
   }, []);
 
   useEffect(() => {
-    doSearch(query);
+    const timer = setTimeout(() => {
+      doSearch(query);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [query, doSearch]);
 
   const handleSearch = (e) => {
@@ -515,7 +566,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = "/login";
+    navigate("/login");
   };
 
   useEffect(() => {
@@ -593,11 +644,14 @@ export default function Dashboard() {
 
     const fetchUserSessions = async () => {
       try {
-        // Get current user ID from auth context
-        const currentUserId = user?.id;
+        const meResponse = await authClient.query({
+          query: ME_QUERY,
+        });
+        const currentUserId = meResponse.data?.me?.id || user?.id;
 
         if (!currentUserId) {
-          console.log("User ID not available yet");
+          setCompletedSessionsCount(0);
+          setUpcomingSessionsCount(0);
           return;
         }
 
@@ -613,6 +667,7 @@ export default function Dashboard() {
         const userSessions = allSessions.filter((session) => {
           const participants = session.participants || [];
           return (
+            String(session.authorId) === String(currentUserId) ||
             participants.includes(currentUserId) ||
             participants.includes(String(currentUserId))
           );
@@ -637,8 +692,9 @@ export default function Dashboard() {
           upcoming: upcoming.length,
           userSessions: userSessions.length,
         });
-      } catch (error) {
-        console.error("Error fetching user sessions:", error);
+      } catch {
+        setCompletedSessionsCount(0);
+        setUpcomingSessionsCount(0);
       }
     };
 
@@ -664,29 +720,11 @@ export default function Dashboard() {
         const buddyRequests = buddyData.data?.getBuddyRequests ?? [];
         const connections = buddyData.data?.getConnections ?? [];
 
-        // Extract user IDs to filter out
-        const connectedUserIds = new Set();
-
-        // Separate incoming and outgoing requests
-        buddyRequests.forEach((req) => {
-          // Outgoing requests - I sent the request
-          if (req.senderId === currentUserId) {
-            connectedUserIds.add(String(req.receiverId));
-          }
-          // Incoming requests - Someone sent me a request
-          if (req.receiverId === currentUserId) {
-            connectedUserIds.add(String(req.senderId));
-          }
-        });
-
-        // Add already connected users
-        connections.forEach((conn) => {
-          if (conn.userId1 === currentUserId) {
-            connectedUserIds.add(String(conn.userId2));
-          } else if (conn.userId2 === currentUserId) {
-            connectedUserIds.add(String(conn.userId1));
-          }
-        });
+        const { pendingUserIds, connectedUserIds } = getBuddyStateSets(
+          buddyRequests,
+          connections,
+          currentUserId,
+        );
 
         // Generate matches
         const { data, errors } = await matchingClient.mutate({
@@ -698,15 +736,18 @@ export default function Dashboard() {
         const matches = data?.generateMatches ?? [];
         const active = matches.filter((m) => !m.ignored);
 
-        // Filter out users that are already connected or have pending requests
+        // Filter out only the current user; show pending/connected state on cards.
         const availableMatches = active.filter((m) => {
-          const matchedUserIdStr = String(m.matchedUserId);
-          return !connectedUserIds.has(matchedUserIdStr);
+          const matchedUserIdStr = getOtherMatchUserId(m, currentUserId);
+          return (
+            matchedUserIdStr &&
+            matchedUserIdStr !== String(currentUserId)
+          );
         });
 
         const withProfiles = await Promise.all(
           availableMatches.map(async (m) => {
-            const uid = String(m.matchedUserId);
+            const uid = getOtherMatchUserId(m, currentUserId);
             try {
               const [profileRes, authRes] = await Promise.all([
                 profileClient.query({
@@ -722,34 +763,46 @@ export default function Dashboard() {
               const name = authRes.data?.getUserProfile?.name ?? "Unknown";
               return {
                 id: m.id,
-                matchedUserId: m.matchedUserId,
+                matchedUserId: uid,
                 score: Math.round(Number(m.score)),
                 name,
                 university: p?.university ?? "—",
                 academicYear: p?.academicYear ?? "",
                 buddyRequestSending: false,
-                buddyRequestSent: false,
+                buddyRequestSent: pendingUserIds.has(uid),
+                alreadyConnected: connectedUserIds.has(uid),
               };
             } catch {
               return {
                 id: m.id,
-                matchedUserId: m.matchedUserId,
+                matchedUserId: uid,
                 score: Math.round(Number(m.score)),
                 name: "Unknown",
                 university: "—",
                 academicYear: "",
                 buddyRequestSending: false,
-                buddyRequestSent: false,
+                buddyRequestSent: pendingUserIds.has(uid),
+                alreadyConnected: connectedUserIds.has(uid),
               };
             }
           }),
         );
         setRecommended(withProfiles);
       } catch (error) {
-        console.error(error);
-        setRecommendedError(
-          error instanceof Error ? error.message : "Failed to load matches",
-        );
+        const msg =
+          error?.graphQLErrors?.[0]?.message ||
+          error?.networkError?.result?.errors?.[0]?.message ||
+          error?.message ||
+          "Failed to load matches";
+
+        if (/User matching profile not found/i.test(msg)) {
+          setRecommendedError(
+            "Complete your profile setup and study preferences to see recommendations.",
+          );
+        } else {
+          console.error(error);
+          setRecommendedError(msg);
+        }
         setRecommended([]);
       } finally {
         setRecommendedLoading(false);
@@ -762,16 +815,12 @@ export default function Dashboard() {
     fetchUserSessions();
   }, []);
 
-  const acceptSessionRequest = async (inviteId, sessionId) => {
+  const acceptSessionRequest = async (inviteId) => {
     setAcceptingInviteId(inviteId);
     try {
       await sessionClient.mutate({
-        mutation: JOIN_STUDY_SESSION,
-        variables: { sessionId },
-      });
-      await sessionClient.mutate({
-        mutation: DELETE_INVITATION,
-        variables: { deleteInvitationId: inviteId },
+        mutation: ACCEPT_INVITATION,
+        variables: { id: inviteId },
       });
       setSessionRequests((prev) => prev.filter((s) => s.id !== inviteId));
     } catch (e) {
@@ -780,6 +829,27 @@ export default function Dashboard() {
         e?.networkError?.result?.errors?.[0]?.message ??
         e?.message ??
         "Could not accept this invitation";
+      console.error(e);
+      window.alert(msg);
+    } finally {
+      setAcceptingInviteId(null);
+    }
+  };
+
+  const rejectSessionRequest = async (inviteId) => {
+    setAcceptingInviteId(inviteId);
+    try {
+      await sessionClient.mutate({
+        mutation: REJECT_INVITATION,
+        variables: { id: inviteId },
+      });
+      setSessionRequests((prev) => prev.filter((s) => s.id !== inviteId));
+    } catch (e) {
+      const msg =
+        e?.graphQLErrors?.[0]?.message ??
+        e?.networkError?.result?.errors?.[0]?.message ??
+        e?.message ??
+        "Could not decline this invitation";
       console.error(e);
       window.alert(msg);
     } finally {
@@ -1202,11 +1272,17 @@ export default function Dashboard() {
                           type="button"
                           className="btn-accept"
                           disabled={acceptingInviteId !== null}
-                          onClick={() =>
-                            acceptSessionRequest(s.id, s.sessionId)
-                          }
+                          onClick={() => acceptSessionRequest(s.id)}
                         >
                           {acceptingInviteId === s.id ? "Accepting…" : "Accept"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-profile"
+                          disabled={acceptingInviteId !== null}
+                          onClick={() => rejectSessionRequest(s.id)}
+                        >
+                          Decline
                         </button>
                       </div>
                     </div>
@@ -1255,8 +1331,7 @@ export default function Dashboard() {
                           fontSize: 14,
                         }}
                       >
-                        No study buddy matches yet. Complete your matching
-                        profile to see suggestions.
+                        No study buddy matches yet. 
                       </div>
                     )}
                   {!recommendedLoading &&
@@ -1289,8 +1364,12 @@ export default function Dashboard() {
                         </div>
                         <button
                           type="button"
-                          className={`btn-connect${r.buddyRequestSent ? " connected" : ""}`}
-                          disabled={r.buddyRequestSending || r.buddyRequestSent}
+                          className={`btn-connect${r.buddyRequestSent || r.alreadyConnected ? " connected" : ""}`}
+                          disabled={
+                            r.buddyRequestSending ||
+                            r.buddyRequestSent ||
+                            r.alreadyConnected
+                          }
                           onClick={() =>
                             sendBuddyRequestForMatch(r.id, r.matchedUserId)
                           }
@@ -1302,7 +1381,9 @@ export default function Dashboard() {
                           />
                           {r.buddyRequestSending
                             ? "Sending…"
-                            : r.buddyRequestSent
+                            : r.alreadyConnected
+                              ? "Connected"
+                              : r.buddyRequestSent
                               ? "Request sent"
                               : "Connect"}
                         </button>
