@@ -13,6 +13,7 @@ import {
   GET_CONNECTIONS,
   CREATE_STUDY_SESSION,
   GET_OTHER_USER,
+  CREATE_INVITATION,
 } from "../../graphql/operations";
 import "./CreateSession.css";
 
@@ -65,12 +66,28 @@ const CreateSession = () => {
     { client: matchingClient },
   );
 
+  // Invitation Mutation
+  const [createInvitation] = useMutation(CREATE_INVITATION, {
+    client: sessionClient,
+  });
+
   // Mutation
   const [createSession, { loading: creating }] = useMutation(
     CREATE_STUDY_SESSION,
     {
       client: sessionClient,
-      onCompleted: () => {
+      onCompleted: (data) => {
+        const sessionId = data.createStudySession.id;
+        
+        // Invite participants
+        if (formData.participants.length > 0) {
+          formData.participants.forEach((buddyId) => {
+            createInvitation({
+              variables: { inviteeId: buddyId, sessionId },
+            }).catch(err => console.error("Failed to invite buddy:", buddyId, err));
+          });
+        }
+
         alert("Study session created successfully!");
         setFormData({
           topic: "",
@@ -130,7 +147,7 @@ const CreateSession = () => {
         duration: parseInt(formData.duration),
         sessionType: formData.sessionType,
         contactInfo: [formData.contactInfo],
-        participants: formData.participants,
+        participants: [user?.id], // Only the creator is added directly
       },
     });
   };
@@ -272,7 +289,7 @@ const CreateSession = () => {
               )}
             </div>
             <div className="helper-text">
-              Select one or more buddies to invite to this session
+              Select one or more buddies to invite. They will receive an invitation to join this session.
             </div>
           </div>
 

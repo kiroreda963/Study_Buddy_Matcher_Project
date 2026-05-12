@@ -251,3 +251,12 @@ export const UPDATE_STUDY_SESSION = gql`
     }
   }
 `;
+
+export const CREATE_INVITATION = gql`
+  mutation CreateInvitation($inviteeId: String!, $sessionId: ID!) {
+    createInvitation(inviteeId: $inviteeId, sessionId: $sessionId) {
+      id
+      status
+    }
+  }
+`;

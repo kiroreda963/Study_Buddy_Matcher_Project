@@ -15,6 +15,7 @@ import {
   UPDATE_STUDY_SESSION,
   GET_STUDY_SESSION_BY_ID,
   GET_OTHER_USER,
+  CREATE_INVITATION,
 } from "../../graphql/operations";
 import "./CreateSession.css";
 
@@ -76,12 +77,33 @@ const EditStudySession = () => {
     { client: matchingClient },
   );
 
+  // Invitation Mutation
+  const [createInvitation] = useMutation(CREATE_INVITATION, {
+    client: sessionClient,
+  });
+
   // Mutation
   const [updateSession, { loading: updating }] = useMutation(
     UPDATE_STUDY_SESSION,
     {
       client: sessionClient,
       onCompleted: () => {
+        // Invite new participants
+        const originalParticipants = sessionData?.studySession?.participants || [];
+        const newParticipants = formData.participants.filter(
+          (id) => !originalParticipants.includes(id) && id !== user?.id
+        );
+
+        if (newParticipants.length > 0) {
+          newParticipants.forEach((buddyId) => {
+            createInvitation({
+              variables: { inviteeId: buddyId, sessionId: id },
+            }).catch((err) =>
+              console.error("Failed to invite buddy:", buddyId, err)
+            );
+          });
+        }
+
         alert("Study session updated successfully!");
         navigate(`/session/${id}`);
       },
@@ -166,7 +188,10 @@ const EditStudySession = () => {
         duration: parseInt(formData.duration),
         sessionType: formData.sessionType,
         contactInfo: [formData.contactInfo],
-        participants: formData.participants,
+        // Only keep existing participants in the direct update
+        participants: formData.participants.filter(id => 
+          sessionData?.studySession?.participants.includes(id) || id === user?.id
+        ),
       },
     });
   };
@@ -316,7 +341,7 @@ const EditStudySession = () => {
               )}
             </div>
             <div className="helper-text">
-              Select one or more buddies to invite to this session
+              Select one or more buddies to invite. They will receive an invitation to join this session.
             </div>
           </div>
 
