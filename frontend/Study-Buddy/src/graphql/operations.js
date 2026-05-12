@@ -178,6 +178,14 @@ export const LEAVE_STUDY_SESSION = gql`
   }
 `;
 
+export const DELETE_STUDY_SESSION = gql`
+  mutation DeleteStudySession($id: ID!) {
+    deleteStudySession(id: $id) {
+      id
+    }
+  }
+`;
+
 export const GET_ME = gql`
   query GetMe {
     me {

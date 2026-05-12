@@ -28,7 +28,6 @@ const STUDY_STYLE_OPTIONS = [
   { value: "listening", label: "Listening" },
   { value: "discussion", label: "Discussing Out Loud" },
   { value: "quiet", label: "Studying Quietly" },
-  { value: "other", label: "Other" },
 ];
 
 function StudyPreferencesInner() {

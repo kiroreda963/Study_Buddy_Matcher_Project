@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@apollo/client/react";
+import { useMutation, useQuery } from "@apollo/client/react";
 import {
   Calendar,
   Clock,
@@ -15,6 +15,7 @@ import { sessionClient, authClient } from "../../clients/apolloClients";
 import {
   GET_STUDY_SESSION_BY_ID,
   GET_OTHER_USER,
+  DELETE_STUDY_SESSION,
 } from "../../graphql/operations";
 import { useAuth } from "../../context/AuthContext";
 import "./SessionDetails.css";
@@ -46,6 +47,22 @@ const SessionDetails = () => {
     variables: { id },
     fetchPolicy: "network-only",
   });
+  const [deleteSession] = useMutation(DELETE_STUDY_SESSION, {
+    client: sessionClient,
+  });
+
+  const handleCancelSession = async () => {
+    const confirmed = window.confirm(
+      "Cancel this study session? This will remove it for everyone.",
+    );
+    if (!confirmed) return;
+    try {
+      await deleteSession({ variables: { id } });
+      navigate("/study-sessions");
+    } catch (err) {
+      alert(err?.message || "Could not cancel session.");
+    }
+  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "N/A";
@@ -100,24 +117,40 @@ const SessionDetails = () => {
           <ArrowLeft size={18} /> Back to Sessions
         </button>
         {isAuthor && (
-          <button 
-            className="edit-session-btn" 
-            onClick={() => navigate(`/edit-session/${id}`)}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              padding: '0.5rem 1rem', 
-              backgroundColor: 'var(--primary-color, #2196f3)', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: 'pointer',
-              fontWeight: '500'
-            }}
-          >
-            <Edit2 size={16} /> Edit Session
-          </button>
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <button 
+              className="edit-session-btn" 
+              onClick={() => navigate(`/edit-session/${id}`)}
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                padding: '0.5rem 1rem', 
+                backgroundColor: 'var(--primary-color, #2196f3)', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '8px', 
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+            >
+              <Edit2 size={16} /> Edit Session
+            </button>
+            <button
+              onClick={handleCancelSession}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "500",
+              }}
+            >
+              Cancel Session
+            </button>
+          </div>
         )}
       </div>
 

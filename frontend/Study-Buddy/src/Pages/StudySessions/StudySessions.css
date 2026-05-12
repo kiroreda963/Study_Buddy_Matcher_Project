@@ -220,6 +220,21 @@
   background-color: #f5f5f5;
 }
 
+.danger-btn {
+  padding: 0.7rem 1.2rem;
+  border: 1px solid #ef4444;
+  background: white;
+  color: #ef4444;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.danger-btn:hover {
+  background-color: #fef2f2;
+}
+
 .nav-arrow {
   background: #57c19d;
   color: white;

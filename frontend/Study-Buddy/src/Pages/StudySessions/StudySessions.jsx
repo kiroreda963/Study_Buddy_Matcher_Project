@@ -16,6 +16,7 @@ import {
   GET_STUDY_SESSIONS,
   JOIN_STUDY_SESSION,
   LEAVE_STUDY_SESSION,
+  DELETE_STUDY_SESSION,
 } from "../../graphql/operations";
 import CreateSession from "../CreateSession/CreateSession";
 import SessionCard from "../Shared/SessionCard";
@@ -42,6 +43,11 @@ const StudySessions = () => {
   });
 
   const [leaveSession] = useMutation(LEAVE_STUDY_SESSION, {
+    client: sessionClient,
+    onCompleted: () => refetch(),
+  });
+
+  const [deleteSession] = useMutation(DELETE_STUDY_SESSION, {
     client: sessionClient,
     onCompleted: () => refetch(),
   });
@@ -108,6 +114,19 @@ const StudySessions = () => {
       setUpcomingIndex((prev) => Math.max(prev - 1, 0));
     } else {
       setPastIndex((prev) => Math.max(prev - 1, 0));
+    }
+  };
+
+  const handleCancelSession = async (sessionId) => {
+    const confirmed = window.confirm(
+      "Cancel this study session? This will remove it for everyone.",
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteSession({ variables: { id: sessionId } });
+    } catch (err) {
+      alert(err?.message || "Could not cancel session.");
     }
   };
 
@@ -249,6 +268,7 @@ const StudySessions = () => {
                       onLeave={() =>
                         leaveSession({ variables: { sessionId: session.id } })
                       }
+                      onCancel={() => handleCancelSession(session.id)}
                       formatDate={formatDate}
                       formatTime={formatTime}
                     />

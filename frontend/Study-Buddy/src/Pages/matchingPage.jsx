@@ -130,7 +130,6 @@ const STUDY_STYLE_OPTIONS = [
   ["listening", "Listening"],
   ["discussion", "Discussing Out Loud"],
   ["quiet", "Studying Quietly"],
-  ["other", "Other"],
 ];
 
 function getStoredUserId(user) {
