@@ -16,7 +16,6 @@ import {
   GET_STUDY_SESSION_BY_ID,
   GET_OTHER_USER,
   CREATE_INVITATION,
-  DELETE_INVITATION,
 } from "../../graphql/operations";
 import "./CreateSession.css";
 
@@ -78,12 +77,8 @@ const EditStudySession = () => {
     { client: matchingClient },
   );
 
-  // Invitation Mutations
+  // Invitation Mutation
   const [createInvitation] = useMutation(CREATE_INVITATION, {
-    client: sessionClient,
-  });
-
-  const [deleteInvitation] = useMutation(DELETE_INVITATION, {
     client: sessionClient,
   });
 
@@ -93,17 +88,10 @@ const EditStudySession = () => {
     {
       client: sessionClient,
       onCompleted: () => {
-        const session = sessionData?.studySession;
-        const originalParticipants = session?.participants || [];
-        const originalInvitations = session?.invitations || [];
-        const pendingInvitations = originalInvitations.filter(inv => inv.status === "PENDING");
-
-        // 1. Invite new buddies (those who were neither participants nor already invited)
+        // Invite new participants
+        const originalParticipants = sessionData?.studySession?.participants || [];
         const newParticipants = formData.participants.filter(
-          (id) => 
-            !originalParticipants.includes(id) && 
-            !originalInvitations.some(inv => inv.inviteeId === id) &&
-            id !== user?.id
+          (id) => !originalParticipants.includes(id) && id !== user?.id
         );
 
         if (newParticipants.length > 0) {
@@ -112,21 +100,6 @@ const EditStudySession = () => {
               variables: { inviteeId: buddyId, sessionId: id },
             }).catch((err) =>
               console.error("Failed to invite buddy:", buddyId, err)
-            );
-          });
-        }
-
-        // 2. Remove pending invitations for unselected buddies
-        const invitationsToDelete = pendingInvitations.filter(
-          inv => !formData.participants.includes(inv.inviteeId)
-        );
-
-        if (invitationsToDelete.length > 0) {
-          invitationsToDelete.forEach((inv) => {
-            deleteInvitation({
-              variables: { id: inv.id },
-            }).catch((err) =>
-              console.error("Failed to delete invitation:", inv.id, err)
             );
           });
         }
@@ -163,19 +136,13 @@ const EditStudySession = () => {
         const datePart = sessionDate.toISOString().split("T")[0];
         const timePart = sessionDate.toTimeString().split(" ")[0].substring(0, 5);
 
-        // Initial participants include actual participants AND pending invitees
-        const participantIds = session.participants || [];
-        const pendingInviteeIds = (session.invitations || [])
-          .filter(inv => inv.status === "PENDING")
-          .map(inv => inv.inviteeId);
-
         setFormData({
           topic: session.topic?.trim() || "",
           date: datePart,
           time: timePart,
           duration: session.duration.toString(),
           sessionType: session.sessionType,
-          participants: Array.from(new Set([...participantIds, ...pendingInviteeIds])),
+          participants: session.participants || [],
           contactInfo: session.contactInfo[0] || "",
         });
       }
@@ -221,8 +188,7 @@ const EditStudySession = () => {
         duration: parseInt(formData.duration),
         sessionType: formData.sessionType,
         contactInfo: [formData.contactInfo],
-        // Only keep existing participants in the direct update
-        participants: formData.participants.filter(id => 
+        participants: formData.participants.filter(id =>
           sessionData?.studySession?.participants.includes(id) || id === user?.id
         ),
       },

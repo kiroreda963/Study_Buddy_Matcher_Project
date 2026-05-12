@@ -78,7 +78,7 @@ const CreateSession = () => {
       client: sessionClient,
       onCompleted: (data) => {
         const sessionId = data.createStudySession.id;
-        
+
         // Invite participants
         if (formData.participants.length > 0) {
           formData.participants.forEach((buddyId) => {
@@ -216,7 +216,7 @@ const CreateSession = () => {
 
           {/* Duration */}
           <div className="form-group">
-            <label>Duration (minutes):</label>
+            <label>Duration:</label>
             <input
               type="number"
               name="duration"
