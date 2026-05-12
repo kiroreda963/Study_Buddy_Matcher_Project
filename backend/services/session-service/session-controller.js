@@ -143,6 +143,10 @@ const sessionController = {
       where: { id },
     });
 
+    if (!invitation) {
+      throw new Error("Invitation not found");
+    }
+
     await sessionController.joinStudySession(invitation.inviteeId, invitation.sessionId);
     return await prisma.invitation.update({
       where: { id },
