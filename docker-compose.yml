@@ -17,6 +17,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9092'"]
       interval: 10s
@@ -134,11 +136,5 @@ services:
 
     ports:
       - "3000:80"
-
-    depends_on:
-      - user-auth-service
-      - profile-preferences-service
-      - availability-service
-      - notification-service
-      - session-service
-      - matching-service-service
+volumes:
+  kafka_data:
