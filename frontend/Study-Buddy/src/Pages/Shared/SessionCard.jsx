@@ -19,7 +19,7 @@ const SessionCard = ({ session, isCreator, isUpcoming, onLeave, formatDate, form
         </div>
         <div className="detail-item">
           <Clock size={16} />
-          <span>{formatTime(session.date)} ({session.duration} hours)</span>
+          <span>{formatTime(session.date)} ({session.duration} mins)</span>
         </div>
         <div className="detail-item">
           <MapPin size={16} />
