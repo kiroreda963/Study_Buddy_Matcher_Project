@@ -125,6 +125,7 @@ services:
     build:
       context: ./frontend
       args:
+        VITE_API_HOST: ${VITE_API_HOST}
         VITE_AUTH_API_URI: ${VITE_AUTH_API_URI} 
         VITE_PROFILE_API_URI: ${VITE_PROFILE_API_URI}
         VITE_AVAILABILITY_API_URI: ${VITE_AVAILABILITY_API_URI}
