@@ -62,6 +62,15 @@ const sessionController = {
   },
 
   async joinStudySession(userId, sessionId) {
+    const session = await prisma.studySession.findUnique({
+      where: { id: sessionId },
+      select: { participants: true },
+    });
+
+    if (session && session.participants.includes(userId)) {
+      return session;
+    }
+
     return await prisma.studySession.update({
       where: { id: sessionId },
       data: {
@@ -145,6 +154,10 @@ const sessionController = {
 
     if (!invitation) {
       throw new Error("Invitation not found");
+    }
+
+    if (invitation.status !== "PENDING") {
+      throw new Error(`Invitation is already ${invitation.status.toLowerCase()}`);
     }
 
     await sessionController.joinStudySession(invitation.inviteeId, invitation.sessionId);
