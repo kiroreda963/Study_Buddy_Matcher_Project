@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { gql } from "@apollo/client";
 import { authClient, matchingClient } from "../clients/apolloClients.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import Navbar from "./Shared/navbar.jsx";
+import Navbar from "./Shared/Navbar.jsx";
 
 const BUDDY_DATA_QUERY = gql`
   query BuddyConnectionsData {
@@ -342,7 +342,10 @@ export default function BuddyConnectionsPage() {
 
       const nextIncoming = data?.getBuddyRequests || [];
       const pendingRequests = dedupePendingRequestPairs(
-        mergeRequests(nextIncoming, mergeRequests(backendOutgoing, storedOutgoing)),
+        mergeRequests(
+          nextIncoming,
+          mergeRequests(backendOutgoing, storedOutgoing),
+        ),
         currentUserId,
       );
       const normalizedIncoming = pendingRequests.filter(
@@ -1008,15 +1011,21 @@ export default function BuddyConnectionsPage() {
                               className="small-btn primary"
                               type="button"
                               disabled={!buddy.matchId}
-                              onClick={() => navigate(`/match/${buddy.matchId}`)}
+                              onClick={() =>
+                                navigate(`/match/${buddy.matchId}`)
+                              }
                             >
                               {buddy.matchId ? "View Profile" : "No Match"}
                             </button>
                             <button
                               className="small-btn danger"
                               type="button"
-                              disabled={busyId === `connection-${buddy.otherId}`}
-                              onClick={() => handleRemoveConnection(buddy.otherId)}
+                              disabled={
+                                busyId === `connection-${buddy.otherId}`
+                              }
+                              onClick={() =>
+                                handleRemoveConnection(buddy.otherId)
+                              }
                             >
                               {busyId === `connection-${buddy.otherId}`
                                 ? "Removing..."

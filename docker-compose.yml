@@ -1,6 +1,7 @@
 services:
   kafka:
     image: apache/kafka:3.7.2
+    restart: unless-stopped
     container_name: kafka
     ports:
       - "9093:9092"
@@ -16,87 +17,128 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9092'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   user-auth-service:
     build:
-      context: ./services/user-auth-service
+      context: ./backend/services/user-auth-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     container_name: user-auth-service
     ports:
       - "3001:3001"
     env_file:
-      - ./services/user-auth-service/.env
+      - ./backend/services/user-auth-service/.env
     environment:
       KAFKA_BROKERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   session-service:
     build:
-      context: ./services/session-service
+      context: ./backend/services/session-service
       dockerfile: Dockerfile
     container_name: session-service
+    restart: unless-stopped
     ports:
       - "3002:3002"
     env_file:
-      - ./services/session-service/.env
+      - ./backend/services/session-service/.env
     environment:
       KAFKA_BROKERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   profile-preferences-service:
     build:
-      context: ./services/profile-preferences-service
+      context: ./backend/services/profile-preferences-service
       dockerfile: Dockerfile
     container_name: profile-preferences-service
+    restart: unless-stopped
     ports:
       - "3003:3003"
     env_file:
-      - ./services/profile-preferences-service/.env
+      - ./backend/services/profile-preferences-service/.env
     environment:
       KAFKA_BROKERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   notification-service:
     build:
-      context: ./services/notification-service
+      context: ./backend/services/notification-service
       dockerfile: Dockerfile
     container_name: notification-service
+    restart: unless-stopped
     ports:
       - "3004:3004"
     env_file:
-      - ./services/notification-service/.env
+      - ./backend/services/notification-service/.env
     environment:
       KAFKA_BROKERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   matching-service-service:
     build:
-      context: ./services/matching-service
+      context: ./backend/services/matching-service
       dockerfile: Dockerfile
     container_name: matching-service-service
+    restart: unless-stopped
     ports:
       - "3005:3005"
     env_file:
-      - ./services/matching-service/.env
+      - ./backend/services/matching-service/.env
     environment:
       KAFKA_BROKERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   availability-service:
     build:
-      context: ./services/availability-service
+      context: ./backend/services/availability-service
       dockerfile: Dockerfile
     container_name: availability-service
+    restart: unless-stopped
     ports:
       - "3006:3006"
     env_file:
-      - ./services/availability-service/.env
+      - ./backend/services/availability-service/.env
     environment:
       KAFKA_BROKERS: kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_AUTH_API_URI: ${VITE_AUTH_API_URI} 
+        VITE_PROFILE_API_URI: ${VITE_PROFILE_API_URI}
+        VITE_AVAILABILITY_API_URI: ${VITE_AVAILABILITY_API_URI}
+        VITE_NOTIFICATION_API_URI: ${VITE_NOTIFICATION_API_URI}
+        VITE_SESSION_API_URI: ${VITE_SESSION_API_URI}
+        VITE_MATCHING_API_URI: ${VITE_MATCHING_API_URI}
+
+    restart: unless-stopped
+
+    ports:
+      - "3000:80"
+
+    depends_on:
+      - user-auth-service
+      - profile-preferences-service
+      - availability-service
+      - notification-service
+      - session-service
+      - matching-service-service

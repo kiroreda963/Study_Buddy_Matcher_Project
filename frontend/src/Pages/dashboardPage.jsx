@@ -14,7 +14,7 @@ import {
 } from "../assets/icons.jsx";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
-import { NotificationBell } from "./Shared/navbar.jsx";
+import { NotificationBell } from "./Shared/Navbar.jsx";
 import { gql } from "@apollo/client";
 import {
   authClient,
@@ -739,10 +739,7 @@ export default function Dashboard() {
         // Filter out only the current user; show pending/connected state on cards.
         const availableMatches = active.filter((m) => {
           const matchedUserIdStr = getOtherMatchUserId(m, currentUserId);
-          return (
-            matchedUserIdStr &&
-            matchedUserIdStr !== String(currentUserId)
-          );
+          return matchedUserIdStr && matchedUserIdStr !== String(currentUserId);
         });
 
         const withProfiles = await Promise.all(
@@ -1331,7 +1328,7 @@ export default function Dashboard() {
                           fontSize: 14,
                         }}
                       >
-                        No study buddy matches yet. 
+                        No study buddy matches yet.
                       </div>
                     )}
                   {!recommendedLoading &&
@@ -1384,8 +1381,8 @@ export default function Dashboard() {
                             : r.alreadyConnected
                               ? "Connected"
                               : r.buddyRequestSent
-                              ? "Request sent"
-                              : "Connect"}
+                                ? "Request sent"
+                                : "Connect"}
                         </button>
                       </div>
                     ))}
